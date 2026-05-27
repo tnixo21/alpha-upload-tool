@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alpha Upload Tool</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -352,6 +353,120 @@ function parseXL(buf) {
   return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
 }
 
+// ── PDF PARSING ──────────────────────────────────────────
+async function parsePDF(buf) {
+  const lib = window.pdfjsLib;
+  if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
+  lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
+  const allItems = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp   = page.getViewport({ scale: 1 });
+    const tc   = await page.getTextContent();
+    const off  = (p - 1) * vp.height;
+    tc.items
+      .filter(i => i.str && i.str.trim())
+      .forEach(i => allItems.push({
+        text: i.str.trim(),
+        x: i.transform[4],
+        y: off + (vp.height - i.transform[5])
+      }));
+  }
+
+  if (!allItems.length) return { rows: [], warn: 'No text found in PDF.' };
+
+  // Sort top-to-bottom, left-to-right
+  allItems.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+  // Group into visual rows by y-coordinate (tolerance 5pt)
+  const TOL = 5;
+  const rawRows = [];
+  let cur = [allItems[0]], curY = allItems[0].y;
+  for (let i = 1; i < allItems.length; i++) {
+    if (Math.abs(allItems[i].y - curY) <= TOL) {
+      cur.push(allItems[i]);
+    } else {
+      rawRows.push(cur.sort((a, b) => a.x - b.x));
+      cur = [allItems[i]];
+      curY = allItems[i].y;
+    }
+  }
+  if (cur.length) rawRows.push(cur.sort((a, b) => a.x - b.x));
+
+  const textRows = rawRows.map(row => row.map(i => i.text));
+
+  // Find header row
+  const hi = findHdr(textRows);
+  if (hi < 0) return { rows: [], warn: 'Could not detect table header in PDF — add rows manually.' };
+
+  const hdrItems = rawRows[hi];
+  const hdrText  = textRows[hi];
+  const cm = buildCM(hdrText);
+  if (cm.tag === undefined) return { rows: [], warn: 'No TAG column found in PDF.' };
+
+  // Build x-range per column key so we can assign data items by position
+  const colDefs = Object.entries(cm)
+    .filter(([, ci]) => ci !== undefined)
+    .map(([k, ci]) => ({ k, x: hdrItems[ci] ? hdrItems[ci].x : 0 }))
+    .sort((a, b) => a.x - b.x);
+
+  const colRanges = colDefs.map((col, i) => ({
+    k: col.k,
+    xStart: i === 0 ? 0 : (colDefs[i-1].x + col.x) / 2,
+    xEnd:   i === colDefs.length - 1 ? Infinity : (col.x + colDefs[i+1].x) / 2
+  }));
+
+  function colOf(x) {
+    for (const cr of colRanges) if (x >= cr.xStart && x < cr.xEnd) return cr.k;
+    return null;
+  }
+
+  const uL = unitOf(hdrText[cm.len]), uW = unitOf(hdrText[cm.wid]), uH = unitOf(hdrText[cm.hgt]);
+  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
+  const out = [];
+
+  for (let i = hi + 1; i < rawRows.length; i++) {
+    // Assign each text item to a column key using x-position
+    const cells = {};
+    for (const item of rawRows[i]) {
+      const k = colOf(item.x);
+      if (k) cells[k] = cells[k] ? cells[k] + ' ' + item.text : item.text;
+    }
+
+    const tag   = String(cells.tag   ?? '').trim();
+    const crate = String(cells.crate ?? '').trim();
+    const wt    = cells.wt  ?? '';
+    const lv    = cells.len ?? '';
+    const wv    = cells.wid ?? '';
+    const hv    = cells.hgt ?? '';
+    const bay   = String(cells.bay ?? '').trim();
+    const row   = String(cells.row ?? '').trim();
+
+    if (!tag && crate && (wt||lv||wv||hv)) {
+      cr = { num:crate, wt:toN(wt)||cr.wt, len:lv||cr.len, wid:wv||cr.wid, hgt:hv||cr.hgt, bay:bay||cr.bay, row:row||cr.row };
+      continue;
+    }
+    if (crate && crate !== cr.num) {
+      cr.num = crate;
+      if (wt) cr.wt = toN(wt); if (lv) cr.len = lv; if (wv) cr.wid = wv; if (hv) cr.hgt = hv;
+      if (bay) cr.bay = bay; if (row) cr.row = row;
+    }
+    if (!tag) continue;
+
+    out.push({ tag, desc: String(cells.desc ?? '').trim(), qty: toN(cells.qty) || 1,
+      wt:  toN(wt  !== '' ? wt  : cr.wt),
+      len: toM(lv  !== '' ? lv  : cr.len, uL),
+      wid: toM(wv  !== '' ? wv  : cr.wid, uW),
+      hgt: toM(hv  !== '' ? hv  : cr.hgt, uH),
+      crate: cr.num, bay: cr.bay, row: cr.row });
+  }
+
+  return { rows: out, warn: out.length === 0 ? 'No tagged rows found in PDF — add rows manually.' : null };
+}
+
 function parseNotes(notes) {
   const r={bay:'',row:'',noDims:false};
   const bm=notes.match(/bay\s*(\d+)/i), rm=notes.match(/row\s*(\d+)/i);
@@ -386,10 +501,9 @@ async function runExtract() {
   let all = [], errors = [];
 
   for (const doc of docs) {
-    if (doc.isPdf) { errors.push(`<b>${esc(doc.name)}</b> — PDF files cannot be auto-read. Add rows manually below.`); continue; }
     try {
       const buf = await doc.file.arrayBuffer();
-      const { rows, warn } = parseXL(buf);
+      const { rows, warn } = doc.isPdf ? await parsePDF(buf) : parseXL(buf);
       if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
       const ni = parseNotes(doc.notes);
       all = all.concat(rows.map(r => ({

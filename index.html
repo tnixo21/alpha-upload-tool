@@ -302,26 +302,40 @@ function removeFile(id) {
   if (!docs.length) document.getElementById('extract-btn').style.display = 'none';
 }
 
-// ── EXCEL PARSING ──────────────────────────────────────────
+// ── SHARED PARSING HELPERS ────────────────────────────────
 const KW = {
-  tag:   ['tag no','tag number','tag#','tag'],
-  desc:  ['brief description','item description','description','desc'],
-  qty:   ['quantity','qty','nos.','nos','no. of items'],
-  wt:    ['gross weight','g.w.','gw','weight'],
+  tag:   ['tag no','tag number','tag#','tag',
+          'serial no','serial number',
+          'rel. part no','rel part no',
+          'part no','part number',
+          'article no','article number',
+          'material no','material number',
+          'item no','item number','item code'],
+  desc:  ['brief description','item description','product description',
+          'product type','description','desc'],
+  qty:   ['quantity','qty','nos.','nos','no. of items','pcs','pieces'],
+  wt:    ['gross weight','unit net weight','net weight','unit weight',
+          'g.w.','gw','weight'],
   len:   ['length','l(mm)','l (mm)','l(m)','dim l','l(cm)','packed l'],
   wid:   ['width','w(mm)','w (mm)','w(m)','dim w','w(cm)','packed w'],
   hgt:   ['height','h(mm)','h (mm)','h(m)','dim h','h(cm)','packed h'],
-  crate: ['crate no','crate number','crate','pallet no','pallet'],
+  crate: ['crate no','crate number','crate','pallet no','pallet',
+          'box no','box number','box','carton no','carton'],
   bay:   ['bay no','bay'],
   row:   ['storage row','row no','row'],
+  po:    ['purchase order no','purchase order number','purchase order',
+          'order no','order number','po no','po number','po#','customer po'],
 };
 const kw = (c, list) => list.some(k => String(c ?? '').toLowerCase().trim().includes(k));
 const findHdr = rows => { for (let i = 0; i < Math.min(rows.length, 50); i++) if (rows[i].some(c => kw(c,KW.tag)) && rows[i].some(c => kw(c,KW.desc))) return i; return -1; };
 const buildCM = hdr => { const m = {}; hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; }); return m; };
 const unitOf = c => { const s=String(c??'').toLowerCase(); return s.includes('(mm)')||s.endsWith('mm')?'mm':s.includes('(cm)')||s.endsWith('cm')?'cm':null; };
-const toM = (v,u) => { const n=parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,'')); if(isNaN(n)||!n) return ''; return u==='mm'?+((n/1000).toFixed(4)):u==='cm'?+((n/100).toFixed(4)):n>20?+((n/1000).toFixed(4)):+(n.toFixed(4)); };
-const toN = v => { if(v===''||v==null) return ''; const n=parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,'')); return isNaN(n)?'':n; };
+// Smart number parser: handles "1,100.00" (thousands+decimal) and EU "1.100,00"
+const _pn = s => { s=String(s).trim(); if(s.includes(',')&&s.includes('.')) s=s.replace(/,/g,''); else s=s.replace(/,/g,'.'); return parseFloat(s.replace(/[^0-9.]/g,'')); };
+const toM = (v,u) => { const n=_pn(v); if(isNaN(n)||!n) return ''; return u==='mm'?+((n/1000).toFixed(4)):u==='cm'?+((n/100).toFixed(4)):n>20?+((n/1000).toFixed(4)):+(n.toFixed(4)); };
+const toN = v => { if(v===''||v==null) return ''; const n=_pn(v); return isNaN(n)?'':n; };
 
+// ── EXCEL PARSING ──────────────────────────────────────────
 function parseXL(buf) {
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -348,7 +362,8 @@ function parseXL(buf) {
     if (!tag) continue;
     out.push({ tag, desc:String(r[cm.desc]??'').trim(), qty:toN(r[cm.qty])||1,
       wt:toN(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL), wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
-      crate:cr.num, bay:cr.bay, row:cr.row });
+      crate:cr.num, bay:cr.bay, row:cr.row,
+      detectedPO: cm.po!==undefined ? String(r[cm.po]??'').trim() : '' });
   }
   return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
 }
@@ -378,7 +393,6 @@ async function parsePDF(buf) {
 
   if (!allItems.length) return { rows: [], warn: 'No text found in PDF.' };
 
-  // Sort top-to-bottom, left-to-right
   allItems.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
 
   // Group into visual rows by y-coordinate (tolerance 5pt)
@@ -403,11 +417,28 @@ async function parsePDF(buf) {
   if (hi < 0) return { rows: [], warn: 'Could not detect table header in PDF — add rows manually.' };
 
   const hdrItems = rawRows[hi];
-  const hdrText  = textRows[hi];
-  const cm = buildCM(hdrText);
-  if (cm.tag === undefined) return { rows: [], warn: 'No TAG column found in PDF.' };
 
-  // Build x-range per column key so we can assign data items by position
+  // Merge next row if it looks like a header continuation
+  // (e.g. SchuF two-line headers: "Unit Net"/"Weight", "Order"/"No.", "Customer"/"Part No.")
+  let combinedHdrText = [...textRows[hi]];
+  if (hi + 1 < rawRows.length) {
+    const nextRow = rawRows[hi + 1];
+    const isContinuation = nextRow.every(item =>
+      item.text.length < 25 && !/^\d+[\d.,]*$/.test(item.text)
+    ) && !nextRow.some(item => kw(item.text, KW.tag));
+    if (isContinuation) {
+      for (const item of nextRow) {
+        let bestIdx = 0, bestDist = Infinity;
+        hdrItems.forEach((h, idx) => { const d = Math.abs(h.x - item.x); if (d < bestDist) { bestDist = d; bestIdx = idx; } });
+        if (bestDist < 80) combinedHdrText[bestIdx] = (combinedHdrText[bestIdx] + ' ' + item.text).trim();
+      }
+    }
+  }
+
+  const cm = buildCM(combinedHdrText);
+  if (cm.tag === undefined) return { rows: [], warn: 'No tag/part/serial column found in PDF — add rows manually.' };
+
+  // Build x-range per detected column so data items can be assigned by x-position
   const colDefs = Object.entries(cm)
     .filter(([, ci]) => ci !== undefined)
     .map(([k, ci]) => ({ k, x: hdrItems[ci] ? hdrItems[ci].x : 0 }))
@@ -424,11 +455,42 @@ async function parsePDF(buf) {
     return null;
   }
 
-  const uL = unitOf(hdrText[cm.len]), uW = unitOf(hdrText[cm.wid]), uH = unitOf(hdrText[cm.hgt]);
+  const uL = unitOf(combinedHdrText[cm.len]), uW = unitOf(combinedHdrText[cm.wid]), uH = unitOf(combinedHdrText[cm.hgt]);
+
+  // Free-text crate header parser (SchuF-style: "Box 1/2...", "Gross Weight X kg", "Dimensions L x W x H mm")
+  function parseFreeTextCrate(rowText) {
+    const t = rowText.join(' ');
+    const boxM = t.match(/\bbox\s+(\d+)\s*[\/\-]/i);
+    if (boxM) return { type:'box', num: boxM[1] };
+    const wtM = t.match(/gross\s*weight\s*:?\s*([\d,]+\.?\d*)\s*kgs?/i);
+    if (wtM) return { type:'wt', wt: _pn(wtM[1]) };
+    const dimM = t.match(/([\d,]+\.?\d*)\s*x\s*([\d,]+\.?\d*)\s*x\s*([\d,]+\.?\d*)\s*(mm|cm|m)\b/i);
+    if (dimM) return { type:'dim', l:dimM[1], w:dimM[2], h:dimM[3], u:dimM[4].toLowerCase() };
+    return null;
+  }
+
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
 
   for (let i = hi + 1; i < rawRows.length; i++) {
+    const rowText = textRows[i];
+
+    // Skip repeated header rows (common on each page of multi-page PDFs)
+    if (rowText.some(c => kw(c, KW.tag)) && rowText.some(c => kw(c, KW.desc))) continue;
+
+    // Try to parse as free-text crate header
+    const ftc = parseFreeTextCrate(rowText);
+    if (ftc) {
+      if (ftc.type === 'box') cr.num = ftc.num;
+      else if (ftc.type === 'wt') cr.wt = ftc.wt;
+      else if (ftc.type === 'dim') {
+        cr.len = toM(ftc.l, ftc.u);
+        cr.wid = toM(ftc.w, ftc.u);
+        cr.hgt = toM(ftc.h, ftc.u);
+      }
+      continue;
+    }
+
     // Assign each text item to a column key using x-position
     const cells = {};
     for (const item of rawRows[i]) {
@@ -461,7 +523,8 @@ async function parsePDF(buf) {
       len: toM(lv  !== '' ? lv  : cr.len, uL),
       wid: toM(wv  !== '' ? wv  : cr.wid, uW),
       hgt: toM(hv  !== '' ? hv  : cr.hgt, uH),
-      crate: cr.num, bay: cr.bay, row: cr.row });
+      crate: cr.num, bay: cr.bay, row: cr.row,
+      detectedPO: cells.po ? cells.po.trim() : '' });
   }
 
   return { rows: out, warn: out.length === 0 ? 'No tagged rows found in PDF — add rows manually.' : null };
@@ -510,7 +573,7 @@ async function runExtract() {
         id: uid++, tag:r.tag, desc:r.desc, qty:r.qty,
         wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
         pallet: mkPallet(doc.prefix, r.bay||ni.bay, r.row||ni.row, r.crate),
-        po: doc.po
+        po: doc.po || r.detectedPO || ''
       })));
     } catch(e) { errors.push(`<b>${esc(doc.name)}</b> — ${esc(e.message)}`); }
   }

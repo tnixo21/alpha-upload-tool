@@ -12,49 +12,92 @@
   --accent:#4f8ef7;--accent2:#7c5cfc;--success:#36d399;--danger:#f87171;
   --warning:#f59e0b;--text:#e2e8f0;--muted:#64748b;--radius:10px;
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 16px}
-.container{max-width:1060px;margin:0 auto}
-.header{text-align:center;margin-bottom:36px}
-.header h1{font-size:1.9rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
-.header p{color:var(--muted);font-size:0.92rem}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 16px 60px}
+.container{max-width:1000px;margin:0 auto}
+
+/* Header */
+.header{text-align:center;margin-bottom:32px}
+.header h1{font-size:1.85rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:5px}
+.header p{color:var(--muted);font-size:.9rem}
+
+/* Setup banner */
+.setup-banner{background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.25);border-radius:var(--radius);padding:24px;margin-bottom:20px;text-align:center}
+.setup-banner h2{font-size:1rem;font-weight:600;margin-bottom:6px}
+.setup-banner p{color:var(--muted);font-size:.84rem;margin-bottom:16px}
+.tpl-saved-bar{display:flex;align-items:center;gap:10px;background:rgba(54,211,153,.07);border:1px solid rgba(54,211,153,.25);border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:.84rem;color:#6ee7b7}
+.tpl-saved-bar button{margin-left:auto;background:none;border:1px solid rgba(54,211,153,.3);color:#6ee7b7;border-radius:5px;padding:3px 10px;font-size:.76rem;cursor:pointer;font-family:inherit}
+.tpl-saved-bar button:hover{background:rgba(54,211,153,.1)}
+
+/* Cards */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px}
 .card-title{display:flex;align-items:center;gap:10px;font-size:.95rem;font-weight:600;margin-bottom:16px}
-.step{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
-.drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .18s;color:var(--muted)}
-.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.05)}
-.drop-zone.filled{border-style:solid;border-color:var(--success);color:var(--success)}
-.drop-zone p{margin:4px 0;font-size:.88rem}
-.drop-zone .sub{font-size:.76rem;margin-top:6px}
-table{width:100%;border-collapse:collapse;font-size:.84rem}
-th{text-align:left;font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:5px 8px;border-bottom:1px solid var(--border)}
-td{padding:4px 4px;vertical-align:middle}
-tr:nth-child(even) td{background:rgba(255,255,255,.015)}
-.tbl-scroll{overflow-x:auto;margin-bottom:10px}
-input[type=text]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.84rem;padding:5px 9px;outline:none;font-family:inherit;width:100%;transition:border-color .15s}
-input[type=text]:focus{border-color:var(--accent)}
-input::placeholder{color:var(--muted)}
-.btn-main{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);padding:13px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .2s,transform .1s;margin-bottom:18px}
-.btn-main:hover{opacity:.88}
-.btn-main:active{transform:scale(.99)}
-.btn-main:disabled{opacity:.35;cursor:not-allowed}
+.step-num{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
+
+/* Drop zone */
+.dz{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all .18s;color:var(--muted);user-select:none}
+.dz:hover,.dz.over{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.04)}
+.dz.filled{border-style:solid;border-color:var(--success);color:var(--success)}
+.dz svg{display:block;margin:0 auto 10px}
+.dz .primary{font-size:.92rem;margin-bottom:4px}
+.dz .secondary{font-size:.76rem;color:var(--muted)}
+
+/* File list */
+.file-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.file-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.file-item-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.file-name{font-size:.85rem;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;font-size:.64rem;font-weight:600;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.b-blue{background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.25)}
+.b-orange{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.25)}
+.b-green{background:rgba(54,211,153,.12);color:var(--success);border:1px solid rgba(54,211,153,.25)}
+.file-fields{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px}
+.field-group label{display:block;font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+input[type=text],textarea{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.84rem;padding:7px 10px;outline:none;font-family:inherit;width:100%;transition:border-color .15s}
+input[type=text]:focus,textarea:focus{border-color:var(--accent)}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{resize:vertical;min-height:54px;line-height:1.5}
+
+/* Buttons */
+.btn-primary{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);padding:14px;font-size:1rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .18s,transform .1s;margin-bottom:18px}
+.btn-primary:hover{opacity:.88}
+.btn-primary:active{transform:scale(.99)}
+.btn-primary:disabled{opacity:.3;cursor:not-allowed}
+.btn-generate{background:linear-gradient(135deg,#10b981,#059669);width:100%;border:none;border-radius:var(--radius);padding:14px;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .18s}
+.btn-generate:hover{opacity:.88}
 .btn-add{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:.82rem;width:100%;transition:all .15s;font-family:inherit;margin-top:10px}
 .btn-add:hover{border-color:var(--accent);color:var(--accent)}
-.btn-del{background:none;border:1px solid var(--border);color:var(--danger);border-radius:5px;width:26px;height:28px;cursor:pointer;font-size:.9rem;transition:background .15s;line-height:1}
-.btn-del:hover{background:rgba(248,113,113,.1)}
-.badge{display:inline-flex;align-items:center;font-size:.66rem;font-weight:600;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.b-blue{background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.25)}
-.b-green{background:rgba(54,211,153,.12);color:var(--success);border:1px solid rgba(54,211,153,.25)}
-.b-orange{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.25)}
-.b-red{background:rgba(248,113,113,.12);color:var(--danger);border:1px solid rgba(248,113,113,.25)}
-.b-gray{background:rgba(100,116,139,.12);color:var(--muted);border:1px solid rgba(100,116,139,.2)}
-.hint{font-size:.76rem;color:var(--muted);line-height:1.5;margin-top:7px}
-.info-box{display:flex;gap:10px;background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:11px 14px;font-size:.82rem;line-height:1.5;color:#94afd4;margin-bottom:14px}
-.err-box{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;font-size:.82rem;color:#fca5a5;margin-top:8px}
+.btn-del{background:none;border:none;color:var(--muted);border-radius:5px;width:28px;height:28px;cursor:pointer;font-size:1.1rem;line-height:1;transition:color .15s;padding:0}
+.btn-del:hover{color:var(--danger)}
+.btn-link{background:none;border:none;color:var(--muted);font-size:.76rem;cursor:pointer;font-family:inherit;text-decoration:underline;padding:0}
+.btn-link:hover{color:var(--text)}
+
+/* Preview table */
+.tbl-scroll{overflow-x:auto;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{text-align:left;font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:3px 3px;vertical-align:middle}
+tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+td input[type=text]{background:var(--surface2);border:1px solid transparent;border-radius:5px;padding:5px 7px;font-size:.82rem}
+td input[type=text]:hover{border-color:var(--border)}
+td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
+
+/* Misc */
+.hint{font-size:.76rem;color:var(--muted);line-height:1.5;margin-top:6px}
+.err-box{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.25);border-radius:8px;padding:10px 14px;font-size:.82rem;color:#fca5a5;margin-bottom:12px}
+.row-count{font-size:.78rem;color:var(--muted);margin-bottom:10px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* Footer */
+.footer{text-align:center;margin-top:24px;font-size:.76rem;color:var(--muted)}
+
 @keyframes spin{to{transform:rotate(360deg)}}
-.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+
+@media(max-width:600px){.file-fields{grid-template-columns:1fr 1fr;}.file-fields .span2{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -62,122 +105,203 @@ input::placeholder{color:var(--muted)}
 
 <div class="header">
   <h1>Alpha Upload Tool</h1>
-  <p>Upload packing lists &mdash; review extracted data &mdash; download populated template.</p>
+  <p>Upload packing lists, add notes, review, and generate your upload file.</p>
 </div>
 
-<div class="card">
-  <div class="card-title"><span class="step">1</span> Alpha upload template <span class="badge b-blue" style="margin-left:4px">Optional</span></div>
-  <div class="info-box">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    Upload your existing Alpha template to preserve its exact column layout and sheet structure. If skipped, a standard format is used.
+<!-- ONE-TIME SETUP -->
+<div id="setup-section">
+  <div class="setup-banner">
+    <h2>One-time setup &#8212; upload your Alpha template</h2>
+    <p>The template is saved in your browser. You only need to do this once.</p>
+    <div class="dz" id="setup-dz" onclick="document.getElementById('setup-input').click()">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <p class="primary">Drop Alpha template (.xlsx) here or click to browse</p>
+    </div>
+    <input type="file" id="setup-input" accept=".xlsx,.xls" style="display:none">
   </div>
-  <div class="drop-zone" id="tpl-drop" onclick="document.getElementById('tpl-input').click()">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-    <p id="tpl-label">Drop Alpha template (.xlsx) here or click to browse</p>
-  </div>
-  <input type="file" id="tpl-input" accept=".xlsx,.xls" style="display:none">
 </div>
 
-<div class="card">
-  <div class="card-title"><span class="step">2</span> Packing list files</div>
-  <div class="drop-zone" id="src-drop" onclick="document.getElementById('src-input').click()">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-    <p>Drop Excel or PDF packing lists here, or click to browse</p>
-    <p class="sub">Multiple files supported &nbsp;&bull;&nbsp; .xlsx .xls .pdf</p>
+<!-- MAIN WORKFLOW -->
+<div id="main-section" style="display:none">
+
+  <div class="tpl-saved-bar" id="tpl-bar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 13 4 10"/></svg>
+    <span id="tpl-bar-name">Template loaded</span>
+    <button onclick="resetTemplate()">Change template</button>
   </div>
-  <input type="file" id="src-input" accept=".xlsx,.xls,.pdf" multiple style="display:none">
-  <div id="docs-wrap" style="display:none;margin-top:14px">
+
+  <!-- STEP 1 -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">1</span> Upload packing list</div>
+    <div class="dz" id="src-dz" onclick="document.getElementById('src-input').click()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      <p class="primary">Drop Excel or PDF files here, or click to browse</p>
+      <p class="secondary">Multiple files supported &nbsp;&middot;&nbsp; .xlsx .xls .pdf</p>
+    </div>
+    <input type="file" id="src-input" accept=".xlsx,.xls,.pdf" multiple style="display:none">
+    <div class="file-list" id="file-list"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <button class="btn-primary" id="extract-btn" onclick="runExtract()" style="display:none">
+    Preview extracted data &rarr;
+  </button>
+
+  <!-- STEP 3 -->
+  <div class="card" id="review-card" style="display:none">
+    <div class="card-title"><span class="step-num">2</span> Review &amp; approve</div>
+    <div id="extract-errors"></div>
+    <div class="row-count" id="row-count"></div>
     <div class="tbl-scroll">
       <table>
         <thead><tr>
-          <th style="width:28%">File</th><th style="width:9%">Type</th>
-          <th style="width:16%">Purchase Order</th><th style="width:16%">Pallet Prefix</th>
-          <th style="width:27%">Notes</th><th style="width:30px"></th>
+          <th>Tag Number</th><th>Brief Description</th><th>Qty</th>
+          <th>Weight (kg)</th><th>L (m)</th><th>W (m)</th><th>H (m)</th>
+          <th>Pallet Number</th><th>Purchase Order</th><th></th>
         </tr></thead>
-        <tbody id="docs-tbody"></tbody>
+        <tbody id="preview-body"></tbody>
       </table>
     </div>
+    <button class="btn-add" onclick="addRow()">+ Add row</button>
   </div>
-</div>
 
-<button class="btn-main" id="process-btn" onclick="processAll()" style="display:none">
-  Extract &amp; Preview →
-</button>
-
-<div id="preview-card" style="display:none" class="card">
-  <div class="card-title">
-    <span class="step">3</span> Review &amp; edit
-    <span id="row-badge" class="badge b-green" style="margin-left:4px"></span>
+  <!-- STEP 4 -->
+  <div class="card" id="gen-card" style="display:none">
+    <div class="card-title"><span class="step-num">3</span> Generate upload file</div>
+    <div class="field-group" style="margin-bottom:14px">
+      <label>Output file name</label>
+      <input type="text" id="out-name" placeholder="Alpha_Upload_YYYYMMDD.xlsx">
+    </div>
+    <button class="btn-generate" onclick="generate()">Generate &amp; Download</button>
+    <div class="hint" style="margin-top:10px;text-align:center">Downloads an .xlsx file &mdash; open in Excel to review or print.</div>
   </div>
-  <p class="hint" style="margin-bottom:10px">Click any cell to edit. Delete rows with ×. Use + Add row for anything that couldn't be extracted.</p>
-  <div id="parse-errors"></div>
-  <div class="tbl-scroll">
-    <table id="preview-tbl">
-      <thead><tr>
-        <th>Tag Number</th><th>Brief Description</th><th>Qty</th>
-        <th>Weight (kg)</th><th>Length (m)</th><th>Width (m)</th><th>Height (m)</th>
-        <th>Pallet Number</th><th>Purchase Order</th><th></th>
-      </tr></thead>
-      <tbody id="preview-tbody"></tbody>
-    </table>
+
+  <div class="footer">
+    <button class="btn-link" onclick="startOver()">Start over</button>
   </div>
-  <button class="btn-add" onclick="addRow()">+ Add row</button>
-</div>
 
-<div id="dl-card" style="display:none" class="card">
-  <div class="card-title"><span class="step">4</span> Download</div>
-  <label style="font-size:.76rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Output file name</label>
-  <input type="text" id="out-name" placeholder="Alpha_Upload_YYYYMMDD.xlsx" style="margin-bottom:14px">
-  <button class="btn-main" style="margin-bottom:0" onclick="downloadOutput()">Download Excel</button>
-</div>
+</div><!-- /main-section -->
+</div><!-- /container -->
 
-</div>
 <script>
-const S = { tplBuf: null, tplWb: null, docs: [], rows: [] };
-let uid = 1;
+// ── TEMPLATE STORAGE ───────────────────────────────────────
+const TPL_KEY = 'alpha_tpl_v1';
+const TPL_NAME_KEY = 'alpha_tpl_name_v1';
 
-function wire(dropId, inputId, cb) {
-  const dz = document.getElementById(dropId);
+function saveTemplateBuf(buf, name) {
+  const bytes = new Uint8Array(buf);
+  let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  localStorage.setItem(TPL_KEY, btoa(bin));
+  localStorage.setItem(TPL_NAME_KEY, name);
+}
+
+function loadTemplateBuf() {
+  const b64 = localStorage.getItem(TPL_KEY);
+  if (!b64) return null;
+  const bin = atob(b64);
+  const buf = new ArrayBuffer(bin.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+function templateSaved() { return !!localStorage.getItem(TPL_KEY); }
+
+function resetTemplate() {
+  if (!confirm('Remove saved template? You will need to upload it again.')) return;
+  localStorage.removeItem(TPL_KEY);
+  localStorage.removeItem(TPL_NAME_KEY);
+  document.getElementById('setup-section').style.display = 'block';
+  document.getElementById('main-section').style.display = 'none';
+  startOver();
+}
+
+// ── INIT ───────────────────────────────────────────────────
+(function init() {
+  if (templateSaved()) {
+    showMain();
+  }
+
+  wireDZ('setup-dz', 'setup-input', files => {
+    const f = files[0]; if (!f) return;
+    f.arrayBuffer().then(buf => {
+      saveTemplateBuf(buf, f.name);
+      showMain();
+    }).catch(() => alert('Could not read that file.'));
+  });
+
+  wireDZ('src-dz', 'src-input', files => {
+    Array.from(files).forEach(addFile);
+  });
+})();
+
+function showMain() {
+  document.getElementById('setup-section').style.display = 'none';
+  document.getElementById('main-section').style.display = 'block';
+  const name = localStorage.getItem(TPL_NAME_KEY) || 'Template';
+  document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
+}
+
+// ── DROP ZONES ─────────────────────────────────────────────
+function wireDZ(dzId, inputId, cb) {
+  const dz = document.getElementById(dzId);
   const inp = document.getElementById(inputId);
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); cb(e.dataTransfer.files); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); cb(e.dataTransfer.files); });
   inp.addEventListener('change', () => { cb(inp.files); inp.value = ''; });
 }
 
-wire('tpl-drop', 'tpl-input', files => {
-  const f = files[0]; if (!f) return;
-  f.arrayBuffer().then(buf => {
-    S.tplBuf = buf;
-    S.tplWb = XLSX.read(buf, { type: 'array' });
-    document.getElementById('tpl-drop').classList.add('filled');
-    document.getElementById('tpl-label').textContent = '✓ ' + f.name;
-  }).catch(() => alert('Could not read template file.'));
-});
+// ── FILE LIST ──────────────────────────────────────────────
+let uid = 1;
+const docs = [];
 
-wire('src-drop', 'src-input', files => { Array.from(files).forEach(addDoc); });
-
-function addDoc(file) {
+function addFile(file) {
   const id = uid++;
-  const isPdf = file.name.toLowerCase().endsWith('.pdf');
-  const doc = { id, file, name: file.name, isPdf, po: '', prefix: '', notes: '', rows: [], status: 'pending', error: null };
-  S.docs.push(doc);
-  const tr = document.createElement('tr');
-  tr.id = 'dr-' + id;
-  tr.innerHTML = `<td title="${esc(file.name)}" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)}</td><td><span class="badge ${isPdf?'b-orange':'b-blue'}">${isPdf?'PDF':'EXCEL'}</span></td><td><input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'po',this.value)"></td><td><input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'prefix',this.value)"></td><td><input type="text" placeholder="e.g. Bay 10 Row 3" oninput="setDoc(${id},'notes',this.value)"></td><td><button class="btn-del" onclick="removeDoc(${id})">×</button></td>`;
-  document.getElementById('docs-tbody').appendChild(tr);
-  document.getElementById('docs-wrap').style.display = 'block';
-  document.getElementById('process-btn').style.display = 'block';
+  const isPdf = /\.pdf$/i.test(file.name);
+  docs.push({ id, file, name: file.name, isPdf, po: '', prefix: '', notes: '' });
+  renderFile(id, file.name, isPdf);
+  document.getElementById('extract-btn').style.display = 'block';
 }
 
-function setDoc(id, k, v) { const d = S.docs.find(x => x.id === id); if (d) d[k] = v.trim(); }
-
-function removeDoc(id) {
-  S.docs = S.docs.filter(d => d.id !== id);
-  const tr = document.getElementById('dr-' + id); if (tr) tr.remove();
-  if (!S.docs.length) { document.getElementById('docs-wrap').style.display='none'; document.getElementById('process-btn').style.display='none'; }
+function renderFile(id, name, isPdf) {
+  const div = document.createElement('div');
+  div.className = 'file-item';
+  div.id = 'fi-' + id;
+  div.innerHTML = `
+    <div class="file-item-header">
+      <span class="badge ${isPdf ? 'b-orange' : 'b-blue'}">${isPdf ? 'PDF' : 'Excel'}</span>
+      <span class="file-name" title="${esc(name)}">${esc(name)}</span>
+      <button class="btn-del" onclick="removeFile(${id})" title="Remove">&times;</button>
+    </div>
+    <div class="file-fields">
+      <div class="field-group">
+        <label>Purchase Order</label>
+        <input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'po',this.value)">
+      </div>
+      <div class="field-group">
+        <label>Pallet prefix</label>
+        <input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'prefix',this.value)">
+      </div>
+      <div class="field-group span2">
+        <label>Notes from paperwork</label>
+        <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
+      </div>
+    </div>`;
+  document.getElementById('file-list').appendChild(div);
 }
 
+function setDoc(id, k, v) { const d = docs.find(x => x.id === id); if (d) d[k] = v.trim(); }
+
+function removeFile(id) {
+  const i = docs.findIndex(d => d.id === id);
+  if (i >= 0) docs.splice(i, 1);
+  const el = document.getElementById('fi-' + id);
+  if (el) el.remove();
+  if (!docs.length) document.getElementById('extract-btn').style.display = 'none';
+}
+
+// ── EXCEL PARSING ──────────────────────────────────────────
 const KW = {
   tag:   ['tag no','tag number','tag#','tag'],
   desc:  ['brief description','item description','description','desc'],
@@ -190,81 +314,42 @@ const KW = {
   bay:   ['bay no','bay'],
   row:   ['storage row','row no','row'],
 };
+const kw = (c, list) => list.some(k => String(c ?? '').toLowerCase().trim().includes(k));
+const findHdr = rows => { for (let i = 0; i < Math.min(rows.length, 50); i++) if (rows[i].some(c => kw(c,KW.tag)) && rows[i].some(c => kw(c,KW.desc))) return i; return -1; };
+const buildCM = hdr => { const m = {}; hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; }); return m; };
+const unitOf = c => { const s=String(c??'').toLowerCase(); return s.includes('(mm)')||s.endsWith('mm')?'mm':s.includes('(cm)')||s.endsWith('cm')?'cm':null; };
+const toM = (v,u) => { const n=parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,'')); if(isNaN(n)||!n) return ''; return u==='mm'?+((n/1000).toFixed(4)):u==='cm'?+((n/100).toFixed(4)):n>20?+((n/1000).toFixed(4)):+(n.toFixed(4)); };
+const toN = v => { if(v===''||v==null) return ''; const n=parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,'')); return isNaN(n)?'':n; };
 
-function kwMatch(cell, list) { return list.some(k => String(cell??'').toLowerCase().trim().includes(k)); }
-
-function findHeader(rows) {
-  for (let i = 0; i < Math.min(rows.length, 50); i++) {
-    if (rows[i].some(c => kwMatch(c, KW.tag)) && rows[i].some(c => kwMatch(c, KW.desc))) return i;
-  }
-  return -1;
-}
-
-function colMap(hdr) {
-  const m = {};
-  hdr.forEach((c, i) => { for (const [k,list] of Object.entries(KW)) { if (m[k]===undefined && kwMatch(c,list)) m[k]=i; } });
-  return m;
-}
-
-function unit(cell) {
-  const s = String(cell??'').toLowerCase();
-  if (s.includes('(mm)')||s.endsWith('mm')) return 'mm';
-  if (s.includes('(cm)')||s.endsWith('cm')) return 'cm';
-  return null;
-}
-
-function toM(val, u) {
-  const n = parseFloat(String(val).replace(/,/g,'.').replace(/[^0-9.]/g,''));
-  if (isNaN(n)||n===0) return '';
-  if (u==='mm') return +((n/1000).toFixed(4));
-  if (u==='cm') return +((n/100).toFixed(4));
-  return n>20 ? +((n/1000).toFixed(4)) : +(n.toFixed(4));
-}
-
-function num(v) {
-  if (v===''||v==null) return '';
-  const n = parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,''));
-  return isNaN(n) ? '' : n;
-}
-
-function parseExcel(buf) {
+function parseXL(buf) {
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
-  const hi = findHeader(raw);
-  if (hi<0) return { rows:[], warn:'Could not detect header row — check the file has TAG No and Description columns.' };
-  const hdr = raw[hi];
-  const cm = colMap(hdr);
-  if (cm.tag===undefined) return { rows:[], warn:'No TAG column found.' };
-  const uL=unit(hdr[cm.len]), uW=unit(hdr[cm.wid]), uH=unit(hdr[cm.hgt]);
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const hi = findHdr(raw);
+  if (hi < 0) return { rows: [], warn: 'Could not detect header row — check for TAG No and Description columns.' };
+  const hdr = raw[hi], cm = buildCM(hdr);
+  if (cm.tag === undefined) return { rows: [], warn: 'No TAG column found.' };
+  const uL=unitOf(hdr[cm.len]), uW=unitOf(hdr[cm.wid]), uH=unitOf(hdr[cm.hgt]);
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
-  for (let i=hi+1; i<raw.length; i++) {
-    const r=raw[i];
-    const tag  = String(r[cm.tag]  ??'').trim();
-    const crate= cm.crate!==undefined ? String(r[cm.crate]??'').trim() : '';
-    const wt   = cm.wt   !==undefined ? r[cm.wt]   : '';
-    const lv   = cm.len  !==undefined ? r[cm.len]  : '';
-    const wv   = cm.wid  !==undefined ? r[cm.wid]  : '';
-    const hv   = cm.hgt  !==undefined ? r[cm.hgt]  : '';
-    const bay  = cm.bay  !==undefined ? String(r[cm.bay]??'').trim() : '';
-    const row  = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
-    if (!tag && crate && (wt||lv||wv||hv)) {
-      cr={num:crate, wt:num(wt)||cr.wt, len:lv||cr.len, wid:wv||cr.wid, hgt:hv||cr.hgt, bay:bay||cr.bay, row:row||cr.row};
-      continue;
-    }
-    if (crate && crate!==cr.num) {
-      cr.num=crate;
-      if(wt) cr.wt=num(wt); if(lv) cr.len=lv; if(wv) cr.wid=wv; if(hv) cr.hgt=hv;
-      if(bay) cr.bay=bay; if(row) cr.row=row;
-    }
+  for (let i = hi+1; i < raw.length; i++) {
+    const r = raw[i];
+    const tag   = String(r[cm.tag]??'').trim();
+    const crate = cm.crate!==undefined ? String(r[cm.crate]??'').trim() : '';
+    const wt    = cm.wt   !==undefined ? r[cm.wt]   : '';
+    const lv    = cm.len  !==undefined ? r[cm.len]  : '';
+    const wv    = cm.wid  !==undefined ? r[cm.wid]  : '';
+    const hv    = cm.hgt  !==undefined ? r[cm.hgt]  : '';
+    const bay   = cm.bay  !==undefined ? String(r[cm.bay]??'').trim() : '';
+    const row   = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
+    if (!tag && crate && (wt||lv||wv||hv)) { cr={num:crate,wt:toN(wt)||cr.wt,len:lv||cr.len,wid:wv||cr.wid,hgt:hv||cr.hgt,bay:bay||cr.bay,row:row||cr.row}; continue; }
+    if (crate && crate!==cr.num) { cr.num=crate; if(wt)cr.wt=toN(wt); if(lv)cr.len=lv; if(wv)cr.wid=wv; if(hv)cr.hgt=hv; if(bay)cr.bay=bay; if(row)cr.row=row; }
     if (!tag) continue;
-    out.push({ tag, desc:String(r[cm.desc]??'').trim(), qty:num(r[cm.qty])||1,
-      wt:num(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL),
-      wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
+    out.push({ tag, desc:String(r[cm.desc]??'').trim(), qty:toN(r[cm.qty])||1,
+      wt:toN(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL), wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
       crate:cr.num, bay:cr.bay, row:cr.row });
   }
-  return { rows:out, warn:out.length===0?'No tagged rows found.':null };
+  return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
 }
 
 function parseNotes(notes) {
@@ -275,7 +360,7 @@ function parseNotes(notes) {
   return r;
 }
 
-function palletNum(prefix, bay, row, crate) {
+function mkPallet(prefix, bay, row, crate) {
   prefix=(prefix||'PK').trim();
   const c=String(crate||'').trim(), b=String(bay||'').trim(), rw=String(row||'').trim();
   if(b&&rw&&c) return `${prefix} Bay ${b} Row ${rw} Crate ${c}`;
@@ -284,103 +369,140 @@ function palletNum(prefix, bay, row, crate) {
   return prefix;
 }
 
-function uniqueTags(rows) {
+function dedupTags(rows) {
   const cnt={}; rows.forEach(r=>{cnt[r.tag]=(cnt[r.tag]||0)+1;});
   const idx={};
   return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
 }
 
-async function processAll() {
-  const btn=document.getElementById('process-btn');
-  btn.innerHTML='<span class="spinner"></span> Processing…'; btn.disabled=true;
-  let all=[]; const errors=[];
-  for (const doc of S.docs) {
-    if (doc.isPdf) { errors.push(`<b>${esc(doc.name)}</b>: PDF auto-parsing not supported. Add rows manually with + Add row.`); continue; }
+// ── EXTRACT ────────────────────────────────────────────────
+let previewRows = [];
+
+async function runExtract() {
+  const btn = document.getElementById('extract-btn');
+  btn.innerHTML = '<span class="spin"></span> Reading files…';
+  btn.disabled = true;
+
+  let all = [], errors = [];
+
+  for (const doc of docs) {
+    if (doc.isPdf) { errors.push(`<b>${esc(doc.name)}</b> — PDF files cannot be auto-read. Add rows manually below.`); continue; }
     try {
-      const buf=await doc.file.arrayBuffer();
-      const {rows,warn}=parseExcel(buf);
-      if(warn) errors.push(`<b>${esc(doc.name)}</b>: ${esc(warn)}`);
-      const ni=parseNotes(doc.notes);
-      all=all.concat(rows.map(r=>({ id:uid++, tag:r.tag, desc:r.desc, qty:r.qty,
+      const buf = await doc.file.arrayBuffer();
+      const { rows, warn } = parseXL(buf);
+      if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
+      const ni = parseNotes(doc.notes);
+      all = all.concat(rows.map(r => ({
+        id: uid++, tag:r.tag, desc:r.desc, qty:r.qty,
         wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
-        pallet:palletNum(doc.prefix,r.bay||ni.bay,r.row||ni.row,r.crate), po:doc.po })));
-    } catch(e) { errors.push(`<b>${esc(doc.name)}</b>: ${esc(e.message)}`); }
+        pallet: mkPallet(doc.prefix, r.bay||ni.bay, r.row||ni.row, r.crate),
+        po: doc.po
+      })));
+    } catch(e) { errors.push(`<b>${esc(doc.name)}</b> — ${esc(e.message)}`); }
   }
-  all=uniqueTags(all); S.rows=all;
-  document.getElementById('parse-errors').innerHTML=errors.length?`<div class="err-box">${errors.join('<br>')}</div>`:'';
-  renderPreview();
-  btn.innerHTML='Extract &amp; Preview →'; btn.disabled=false;
-  document.getElementById('preview-card').style.display='block';
-  document.getElementById('dl-card').style.display='block';
-  document.getElementById('preview-card').scrollIntoView({behavior:'smooth',block:'start'});
-  if(!document.getElementById('out-name').value)
-    document.getElementById('out-name').value='Alpha_Upload_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx';
+
+  previewRows = dedupTags(all);
+
+  document.getElementById('extract-errors').innerHTML = errors.length
+    ? `<div class="err-box">${errors.join('<br>')}</div>` : '';
+  document.getElementById('row-count').textContent = previewRows.length + ' rows extracted';
+  renderTable();
+
+  btn.innerHTML = 'Preview extracted data &rarr;';
+  btn.disabled = false;
+
+  document.getElementById('review-card').style.display = 'block';
+  document.getElementById('gen-card').style.display = 'block';
+  if (!document.getElementById('out-name').value)
+    document.getElementById('out-name').value = 'Alpha_Upload_' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '.xlsx';
+  document.getElementById('review-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderPreview() {
-  const tbody=document.getElementById('preview-tbody');
-  tbody.innerHTML='';
-  S.rows.forEach(r=>tbody.appendChild(mkRow(r)));
-  document.getElementById('row-badge').textContent=S.rows.length+' rows';
+// ── PREVIEW TABLE ──────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('preview-body');
+  tbody.innerHTML = '';
+  previewRows.forEach(r => tbody.appendChild(mkTr(r)));
+  document.getElementById('row-count').textContent = previewRows.length + ' rows';
 }
 
-function mkRow(r) {
-  const tr=document.createElement('tr'); tr.id='pr-'+r.id;
-  const fields=['tag','desc','qty','wt','len','wid','hgt','pallet','po'];
-  tr.innerHTML=fields.map(f=>`<td><input type="text" value="${esc(String(r[f]??''))}" oninput="setRow(${r.id},'${f}',this.value)"></td>`).join('')+`<td><button class="btn-del" onclick="delRow(${r.id})">×</button></td>`;
+function mkTr(r) {
+  const tr = document.createElement('tr'); tr.id = 'tr-'+r.id;
+  const F = ['tag','desc','qty','wt','len','wid','hgt','pallet','po'];
+  tr.innerHTML = F.map(f=>`<td><input type="text" value="${esc(String(r[f]??''))}" oninput="upd(${r.id},'${f}',this.value)"></td>`).join('')
+    + `<td><button class="btn-del" onclick="delR(${r.id})">&times;</button></td>`;
   return tr;
 }
 
-function setRow(id,k,v){const r=S.rows.find(x=>x.id===id);if(r)r[k]=v;}
-function delRow(id){S.rows=S.rows.filter(r=>r.id!==id);const t=document.getElementById('pr-'+id);if(t)t.remove();document.getElementById('row-badge').textContent=S.rows.length+' rows';}
-function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};S.rows.push(r);document.getElementById('preview-tbody').appendChild(mkRow(r));document.getElementById('row-badge').textContent=S.rows.length+' rows';document.getElementById('preview-card').style.display='block';document.getElementById('dl-card').style.display='block';}
+function upd(id,k,v){const r=previewRows.find(x=>x.id===id);if(r)r[k]=v;}
+function delR(id){previewRows=previewRows.filter(r=>r.id!==id);const t=document.getElementById('tr-'+id);if(t)t.remove();document.getElementById('row-count').textContent=previewRows.length+' rows';}
+function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};previewRows.push(r);document.getElementById('preview-body').appendChild(mkTr(r));document.getElementById('row-count').textContent=previewRows.length+' rows';document.getElementById('review-card').style.display='block';document.getElementById('gen-card').style.display='block';}
 
-function downloadOutput() {
-  if(!S.rows.length){alert('No rows to export.');return;}
-  const fname=document.getElementById('out-name').value.trim()||'Alpha_Upload.xlsx';
+// ── GENERATE ───────────────────────────────────────────────
+function generate() {
+  if (!previewRows.length) { alert('No rows to export.'); return; }
+  const fname = document.getElementById('out-name').value.trim() || 'Alpha_Upload.xlsx';
+  const tplBuf = loadTemplateBuf();
   let wb;
-  if(S.tplBuf){
-    wb=XLSX.read(S.tplBuf,{type:'array'});
-    const sn=wb.SheetNames.find(n=>/data/i.test(n))||wb.SheetNames[0];
-    const ws=wb.Sheets[sn];
-    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    const hi=findHeader(raw);
-    if(hi>=0){
-      const hdr=raw[hi], cm=colMap(hdr);
-      let ins=hi+1;
-      for(let i=hi+1;i<raw.length;i++){if(raw[i].some(c=>String(c).trim()!==''))ins=i+1;else break;}
-      const range=XLSX.utils.decode_range(ws['!ref']||'A1');
-      const poCol=hdr.findIndex(c=>/purchase\s*order|p\.?o\b/i.test(String(c)));
-      S.rows.forEach((r,i)=>{
-        const ri=ins+i;
-        const set=(col,val,t)=>{if(col!==undefined&&col>=0)ws[XLSX.utils.encode_cell({r:ri,c:col})]={v:val,t};};
-        set(cm.tag,r.tag,'s'); set(cm.desc,r.desc,'s');
-        if(r.qty!=='')set(cm.qty,Number(r.qty),'n');
-        if(r.wt!=='')set(cm.wt,Number(r.wt),'n');
-        if(r.len!=='')set(cm.len,Number(r.len),'n');
-        if(r.wid!=='')set(cm.wid,Number(r.wid),'n');
-        if(r.hgt!=='')set(cm.hgt,Number(r.hgt),'n');
-        if(cm.crate!==undefined)set(cm.crate,r.pallet,'s');
-        if(poCol>=0)ws[XLSX.utils.encode_cell({r:ri,c:poCol})]={v:r.po,t:'s'};
-        range.e.r=Math.max(range.e.r,ri);
+
+  if (tplBuf) {
+    wb = XLSX.read(tplBuf, { type: 'array' });
+    const sn = wb.SheetNames.find(n => /data/i.test(n)) || wb.SheetNames[0];
+    const ws = wb.Sheets[sn];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    const hi = findHdr(raw);
+    if (hi >= 0) {
+      const hdr = raw[hi], cm = buildCM(hdr);
+      let ins = hi + 1;
+      for (let i = hi+1; i < raw.length; i++) { if (raw[i].some(c => String(c).trim())) ins = i+1; else break; }
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      const poCol = hdr.findIndex(c => /purchase\s*order|p\.?o\b/i.test(String(c)));
+      previewRows.forEach((r, i) => {
+        const ri = ins + i;
+        const sc = (col, val, t) => { if (col !== undefined && col >= 0) ws[XLSX.utils.encode_cell({r:ri,c:col})] = {v:val,t}; };
+        sc(cm.tag, r.tag, 's'); sc(cm.desc, r.desc, 's');
+        if(r.qty!=='') sc(cm.qty, Number(r.qty), 'n');
+        if(r.wt!=='')  sc(cm.wt,  Number(r.wt),  'n');
+        if(r.len!=='') sc(cm.len, Number(r.len), 'n');
+        if(r.wid!=='') sc(cm.wid, Number(r.wid), 'n');
+        if(r.hgt!=='') sc(cm.hgt, Number(r.hgt), 'n');
+        if(cm.crate!==undefined) sc(cm.crate, r.pallet, 's');
+        if(poCol>=0) ws[XLSX.utils.encode_cell({r:ri,c:poCol})] = {v:r.po,t:'s'};
+        range.e.r = Math.max(range.e.r, ri);
       });
-      ws['!ref']=XLSX.utils.encode_range(range);
+      ws['!ref'] = XLSX.utils.encode_range(range);
     }
   } else {
-    wb=XLSX.utils.book_new();
-    const hdrs=['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
-    const data=[hdrs,...S.rows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
-    const ws=XLSX.utils.aoa_to_sheet(data);
-    ws['!cols']=[{wch:22},{wch:38},{wch:9},{wch:12},{wch:11},{wch:11},{wch:11},{wch:32},{wch:16}];
-    XLSX.utils.book_append_sheet(wb,ws,'Data');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([[]]),'Supplier');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([[]]),'Blue Water');
+    // No template — standard format
+    wb = XLSX.utils.book_new();
+    const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
+    const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:22},{wch:38},{wch:9},{wch:12},{wch:11},{wch:11},{wch:11},{wch:32},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Data');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Supplier');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Blue Water');
   }
-  const arr=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-  const blob=new Blob([arr],{type:'application/octet-stream'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=fname; a.click();
+
+  const arr = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+  const blob = new Blob([arr], { type:'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=fname; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function startOver() {
+  docs.length = 0;
+  previewRows = [];
+  document.getElementById('file-list').innerHTML = '';
+  document.getElementById('extract-btn').style.display = 'none';
+  document.getElementById('review-card').style.display = 'none';
+  document.getElementById('gen-card').style.display = 'none';
+  document.getElementById('extract-errors').innerHTML = '';
+  document.getElementById('preview-body').innerHTML = '';
+  document.getElementById('out-name').value = '';
+  document.getElementById('src-dz').classList.remove('filled');
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}

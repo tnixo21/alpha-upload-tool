@@ -656,24 +656,31 @@ function generate() {
     const hi = findHdr(raw);
     if (hi >= 0) {
       const hdr = raw[hi], cm = buildCM(hdr);
+      // Find first empty row after the header to start inserting
       let ins = hi + 1;
       for (let i = hi+1; i < raw.length; i++) { if (raw[i].some(c => String(c).trim())) ins = i+1; else break; }
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
       const poCol = hdr.findIndex(c => /purchase\s*order|p\.?o\b/i.test(String(c)));
-      previewRows.forEach((r, i) => {
-        const ri = ins + i;
-        const sc = (col, val, t) => { if (col !== undefined && col >= 0) ws[XLSX.utils.encode_cell({r:ri,c:col})] = {v:val,t}; };
-        sc(cm.tag, r.tag, 's'); sc(cm.desc, r.desc, 's');
-        if(r.qty!=='') sc(cm.qty, Number(r.qty), 'n');
-        if(r.wt!=='')  sc(cm.wt,  Number(r.wt),  'n');
-        if(r.len!=='') sc(cm.len, Number(r.len), 'n');
-        if(r.wid!=='') sc(cm.wid, Number(r.wid), 'n');
-        if(r.hgt!=='') sc(cm.hgt, Number(r.hgt), 'n');
-        if(cm.crate!==undefined) sc(cm.crate, r.pallet, 's');
-        if(poCol>=0) ws[XLSX.utils.encode_cell({r:ri,c:poCol})] = {v:r.po,t:'s'};
-        range.e.r = Math.max(range.e.r, ri);
+      // Build rows as arrays aligned to the template's column order,
+      // then use sheet_add_aoa which correctly extends !ref in all directions.
+      const aoa = previewRows.map(r => {
+        const row = new Array(hdr.length).fill('');
+        if (cm.tag  !== undefined) row[cm.tag]  = r.tag;
+        if (cm.desc !== undefined) row[cm.desc] = r.desc;
+        if (cm.qty  !== undefined && r.qty !== '') row[cm.qty]  = Number(r.qty);
+        if (cm.wt   !== undefined && r.wt  !== '') row[cm.wt]   = Number(r.wt);
+        if (cm.len  !== undefined && r.len !== '') row[cm.len]  = Number(r.len);
+        if (cm.wid  !== undefined && r.wid !== '') row[cm.wid]  = Number(r.wid);
+        if (cm.hgt  !== undefined && r.hgt !== '') row[cm.hgt]  = Number(r.hgt);
+        if (cm.crate !== undefined) row[cm.crate] = r.pallet;
+        if (poCol >= 0) row[poCol] = r.po;
+        return row;
       });
-      ws['!ref'] = XLSX.utils.encode_range(range);
+      XLSX.utils.sheet_add_aoa(ws, aoa, { origin: { r: ins, c: 0 } });
+    } else {
+      // Template header not recognised — append data as a new sheet so nothing is lost
+      const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
+      const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Upload Data');
     }
   } else {
     // No template — standard format

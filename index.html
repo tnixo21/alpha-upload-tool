@@ -420,37 +420,45 @@ async function parsePDF(buf) {
   // Merge the next row if it looks like a header continuation (e.g. two-line column headers:
   // "Unit Net" / "Weight", "Order" / "No.", "Customer" / "Part No.")
   let combinedHdrText = [...textRows[hi]];
+  let dataStart = hi + 1;
   if (hi + 1 < rawRows.length) {
     const nextRow = rawRows[hi + 1];
+    // A continuation row has short non-numeric tokens only.
+    // We intentionally do NOT check for KW.tag here — "Part No." in a second-line
+    // header (e.g. "Customer Part No.") would otherwise suppress the merge.
     const isContinuation = nextRow.every(item =>
       item.text.length < 25 && !/^\d+[\d.,]*$/.test(item.text)
-    ) && !nextRow.some(item => kw(item.text, KW.tag));
+    );
     if (isContinuation) {
       for (const item of nextRow) {
         let bestIdx = 0, bestDist = Infinity;
         hdrItems.forEach((h, idx) => { const d = Math.abs(h.x - item.x); if (d < bestDist) { bestDist = d; bestIdx = idx; } });
         if (bestDist < 80) combinedHdrText[bestIdx] = (combinedHdrText[bestIdx] + ' ' + item.text).trim();
       }
+      dataStart = hi + 2; // skip the merged continuation row
     }
   }
 
   const cm = buildCM(combinedHdrText);
   if (cm.tag === undefined) return { rows: [], warn: 'No tag/part/serial column found in PDF — add rows manually.' };
 
-  // Build x-range per column key so we can assign data items by x-position
-  const colDefs = Object.entries(cm)
-    .filter(([, ci]) => ci !== undefined)
-    .map(([k, ci]) => ({ k, x: hdrItems[ci] ? hdrItems[ci].x : 0 }))
-    .sort((a, b) => a.x - b.x);
+  // Build column ranges from ALL header items (not just KW-matched ones).
+  // Each column gets a left boundary of h.x - MARGIN, right boundary of next_h.x - MARGIN.
+  // This prevents narrow unmatched columns (Line No., Rel. No., etc.) from bleeding
+  // their data into adjacent KW-matched columns.
+  // Items falling in an unmatched column return null from colOf() and are ignored.
+  const MARGIN = 8;
+  const allHdrByX = hdrItems.slice().sort((a, b) => a.x - b.x);
+  const hdrXToKey = {};
+  for (const [k, ci] of Object.entries(cm)) {
+    if (ci !== undefined && hdrItems[ci]) hdrXToKey[hdrItems[ci].x] = k;
+  }
+  const tableLeftBound = allHdrByX[0].x - 30;
 
-  // Left boundary: 30pt before the first header item so text from side-column
-  // address blocks (shipper / consignee) is not captured as tag data.
-  const tableLeftBound = colDefs[0].x - 30;
-
-  const colRanges = colDefs.map((col, i) => ({
-    k: col.k,
-    xStart: i === 0 ? tableLeftBound : (colDefs[i-1].x + col.x) / 2,
-    xEnd:   i === colDefs.length - 1 ? Infinity : (col.x + colDefs[i+1].x) / 2
+  const colRanges = allHdrByX.map((h, i) => ({
+    k: hdrXToKey[h.x] || null,
+    xStart: Math.max(tableLeftBound, h.x - MARGIN),
+    xEnd: i === allHdrByX.length - 1 ? Infinity : allHdrByX[i + 1].x - MARGIN
   }));
 
   function colOf(x) {
@@ -490,7 +498,6 @@ async function parsePDF(buf) {
 
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
-  const dataStart = hi + 1;
 
   for (let i = dataStart; i < rawRows.length; i++) {
     const rowText = textRows[i];
@@ -534,8 +541,10 @@ async function parsePDF(buf) {
       if (bay) cr.bay = bay; if (row) cr.row = row;
     }
     if (!tag || !looksLikeTag(tag)) continue;
+    const desc = String(cells.desc ?? '').trim();
+    if (/^\d+$/.test(tag) && !desc) continue;
 
-    out.push({ tag, desc: String(cells.desc ?? '').trim(), qty: toN(cells.qty) || 1,
+    out.push({ tag, desc, qty: toN(cells.qty) || 1,
       wt:  toN(wt  !== '' ? wt  : cr.wt),
       len: toM(lv  !== '' ? lv  : cr.len, uL),
       wid: toM(wv  !== '' ? wv  : cr.wid, uW),

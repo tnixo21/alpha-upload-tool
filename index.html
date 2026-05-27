@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha Upload Prompt Builder</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3348;
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --success: #36d399;
+    --warning: #f59e0b;
+    --danger: #f87171;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --radius: 10px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p { color: var(--muted); font-size: 0.95rem; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 18px;
+    color: var(--text);
+  }
+  .card-title .step {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Form elements */
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  input[type="text"], textarea, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 0.9rem;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  select option { background: var(--surface2); }
+
+  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+  /* Document rows table */
+  .doc-table { width: 100%; border-collapse: collapse; }
+  .doc-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 8px 10px;
+  }
+  .doc-row td { padding: 5px 4px; vertical-align: top; }
+  .doc-row td input { margin: 0; }
+  .doc-row td.del-col { width: 36px; padding-top: 5px; text-align: center; }
+
+  .btn-del {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--danger);
+    border-radius: 6px;
+    width: 28px; height: 33px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .btn-del:hover { background: rgba(248,113,113,0.1); }
+
+  .btn-add {
+    margin-top: 12px;
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    width: 100%;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-add:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Toggles */
+  .toggle-group { display: flex; flex-direction: column; gap: 10px; }
+  .toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .toggle-row:hover { border-color: var(--accent); }
+  .toggle-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+  .toggle-row .toggle-label { font-size: 0.9rem; font-weight: 500; }
+  .toggle-row .toggle-desc { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+  /* Generate button */
+  .btn-generate {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    padding: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    font-family: inherit;
+    margin-bottom: 20px;
+  }
+  .btn-generate:hover { opacity: 0.9; }
+  .btn-generate:active { transform: scale(0.99); }
+
+  /* Output area */
+  #output-section { display: none; }
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .output-header h3 { font-size: 1rem; font-weight: 600; }
+  .btn-copy {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-copy:hover { border-color: var(--success); color: var(--success); }
+  .btn-copy.copied { border-color: var(--success); color: var(--success); background: rgba(54,211,153,0.08); }
+
+  #output-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #cbd5e1;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+
+  .hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-blue { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* Scroll bar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  @media (max-width: 600px) {
+    .doc-table th:nth-child(3),
+    .doc-table th:nth-child(4),
+    .doc-row td:nth-child(3),
+    .doc-row td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>Alpha Upload Prompt Builder</h1>
+    <p>Fill in your job details below — click <strong>Generate Prompt</strong> — paste into Claude with your files attached.</p>
+  </div>
+
+  <!-- Step 1: Output file name -->
+  <div class="card">
+    <div class="card-title"><span class="step">1</span> Output file name <span class="badge badge-blue">Optional</span></div>
+    <label>Output file name (leave blank for auto-generated)</label>
+    <input type="text" id="output-name" placeholder="e.g. Alpha_Upload_PK43_20260527.xlsx">
+  </div>
+
+  <!-- Step 2: Source documents -->
+  <div class="card">
+    <div class="card-title"><span class="step">2</span> Source documents</div>
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th style="width:22%">File name</th>
+          <th style="width:16%">Purchase Order</th>
+          <th style="width:14%">Pallet prefix</th>
+          <th style="width:12%">Bay</th>
+          <th style="width:12%">Row (if known)</th>
+          <th style="width:20%">Notes</th>
+          <th style="width:36px"></th>
+        </tr>
+      </thead>
+      <tbody id="doc-rows">
+        <!-- rows injected by JS -->
+      </tbody>
+    </table>
+    <button class="btn-add" onclick="addDocRow()">+ Add document</button>
+    <p class="hint">Tip: If Bay/Row data exists in the source file, leave those fields blank here — Claude will extract them. Only fill them in if the source doc doesn't contain them.</p>
+  </div>
+
+  <!-- Step 3: Document type overrides -->
+  <div class="card">
+    <div class="card-title"><span class="step">3</span> Special handling flags <span class="badge badge-blue">Check all that apply</span></div>
+    <div class="toggle-group">
+      <label class="toggle-row" for="flag-bray">
+        <input type="checkbox" id="flag-bray">
+        <div>
+          <div class="toggle-label">Bray-style semi-structured Excel</div>
+          <div class="toggle-desc">Header row is mid-sheet. Crate weight &amp; dimensions appear once per crate block and must be inherited by all tag lines within that crate.</div>
+        </div>
+      </label>
+      <label class="toggle-row" for="flag-pdf">
+        <input type="checkbox" id="flag-pdf">
+        <div>
+          <div class="toggle-label">Allied Heat Transfer / PDF packing list</div>
+          <div class="toggle-desc">Extract floor-loaded equipment and crate-based spares separately. Use article-level rows for commissioning spares. Use item description as tag number where no explicit tag exists.</div>
+        </div>
+      </label>
+      <label class="toggle-row" for="flag-orings">
+        <input type="checkbox" id="flag-orings">
+        <div>
+          <div class="toggle-label">O-rings / invoice-style document (PK47)</div>
+          <div class="toggle-desc">Keep weight. Leave all dimension fields blank. Use the PO name exactly as entered — do not infer or abbreviate it.</div>
+        </div>
+      </label>
+      <label class="toggle-row" for="flag-prodtype">
+        <input type="checkbox" id="flag-prodtype">
+        <div>
+          <div class="toggle-label">Use &quot;Product Type&quot; as Brief description</div>
+          <div class="toggle-desc">For documents where the &quot;Description&quot; column is too generic. Applies to all documents in this run unless overridden in Supplemental.</div>
+        </div>
+      </label>
+      <label class="toggle-row" for="flag-noBayRow">
+        <input type="checkbox" id="flag-noBayRow">
+        <div>
+          <div class="toggle-label">No Bay / Row data in any source document</div>
+          <div class="toggle-desc">Use the short pallet format: [Prefix]-Crate no.[#] instead of the full Bay/Row format.</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Step 4: Supplemental info -->
+  <div class="card">
+    <div class="card-title"><span class="step">4</span> Supplemental information <span class="badge badge-blue">Optional</span></div>
+    <label>Extra context, overrides, or corrections for this specific run</label>
+    <textarea id="supplemental" placeholder="Examples:
+• Crate 5 in document 2 has no weight listed — use 120 kg
+• Tag EB-400 appears twice but both are the same item — do not add suffixes
+• PO for document 3 should be PK-43 (with hyphen), not PK43
+• For ITEM-04/05/06 rows, use the Description as the article/tag number"></textarea>
+  </div>
+
+  <!-- Generate -->
+  <button class="btn-generate" onclick="generatePrompt()">Generate Prompt →</button>
+
+  <!-- Output -->
+  <div id="output-section" class="card">
+    <div class="output-header">
+      <h3>Your prompt — copy and paste into Claude with your files attached</h3>
+      <button class="btn-copy" id="copy-btn" onclick="copyPrompt()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div id="output-box"></div>
+  </div>
+
+</div>
+
+<script>
+  let rowCount = 0;
+
+  function addDocRow(fileName='', po='', prefix='', bay='', row='', notes='') {
+    rowCount++;
+    const id = rowCount;
+    const tbody = document.getElementById('doc-rows');
+    const tr = document.createElement('tr');
+    tr.className = 'doc-row';
+    tr.id = `row-${id}`;
+    tr.innerHTML = `
+      <td><input type="text" placeholder="filename.xlsx" value="${fileName}" data-field="file"></td>
+      <td><input type="text" placeholder="e.g. PK43A" value="${po}" data-field="po"></td>
+      <td><input type="text" placeholder="e.g. PK43A" value="${prefix}" data-field="prefix"></td>
+      <td><input type="text" placeholder="e.g. 10" value="${bay}" data-field="bay"></td>
+      <td><input type="text" placeholder="extract from doc" value="${row}" data-field="row"></td>
+      <td><input type="text" placeholder="optional notes" value="${notes}" data-field="notes"></td>
+      <td class="del-col"><button class="btn-del" onclick="delRow(${id})" title="Remove">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function delRow(id) {
+    const el = document.getElementById(`row-${id}`);
+    if (el) el.remove();
+  }
+
+  function getDocRows() {
+    const rows = document.querySelectorAll('.doc-row');
+    return Array.from(rows).map(tr => ({
+      file:   tr.querySelector('[data-field="file"]').value.trim(),
+      po:     tr.querySelector('[data-field="po"]').value.trim(),
+      prefix: tr.querySelector('[data-field="prefix"]').value.trim(),
+      bay:    tr.querySelector('[data-field="bay"]').value.trim(),
+      row:    tr.querySelector('[data-field="row"]').value.trim(),
+      notes:  tr.querySelector('[data-field="notes"]').value.trim(),
+    })).filter(r => r.file || r.po);
+  }
+
+  function generatePrompt() {
+    const docs = getDocRows();
+    const outputName = document.getElementById('output-name').value.trim();
+    const supplemental = document.getElementById('supplemental').value.trim();
+
+    const flagBray     = document.getElementById('flag-bray').checked;
+    const flagPdf      = document.getElementById('flag-pdf').checked;
+    const flagOrings   = document.getElementById('flag-orings').checked;
+    const flagProdType = document.getElementById('flag-prodtype').checked;
+    const flagNoBayRow = document.getElementById('flag-noBayRow').checked;
+
+    // Build doc table text
+    let docTable = '';
+    if (docs.length === 0) {
+      docTable = '(No documents entered — attach your files and describe them in Supplemental Information)\n';
+    } else {
+      docs.forEach((d, i) => {
+        docTable += `  Document ${i+1}:\n`;
+        if (d.file)   docTable += `    File:           ${d.file}\n`;
+        if (d.po)     docTable += `    Purchase Order: ${d.po}\n`;
+        if (d.prefix) docTable += `    Pallet prefix:  ${d.prefix}\n`;
+        if (d.bay)    docTable += `    Bay:            ${d.bay} (override — Bay is not in source doc)\n`;
+        else          docTable += `    Bay:            Extract from source document\n`;
+        if (d.row)    docTable += `    Row:            ${d.row} (override — Row is not in source doc)\n`;
+        else          docTable += `    Row:            Extract from source document\n`;
+        if (d.notes)  docTable += `    Notes:          ${d.notes}\n`;
+        docTable += '\n';
+      });
+    }
+
+    // Special handling section
+    let specialHandling = '';
+    if (flagBray || flagPdf || flagOrings || flagProdType || flagNoBayRow) {
+      specialHandling = '\n--- SPECIAL HANDLING FLAGS ---\n';
+      if (flagBray)     specialHandling += '• BRAY-STYLE EXCEL: Header row is mid-sheet. Scan for it. Crate weight and dimensions appear once per crate block — inherit them for all tag lines in that crate. Skip rows with no TAG No.\n';
+      if (flagPdf)      specialHandling += '• PDF PACKING LIST: Extract floor-loaded equipment and crate-based spares separately. Use article-level rows for commissioning spares (not summary rows). Where a spare line has no explicit tag, use the item description as the tag/article number.\n';
+      if (flagOrings)   specialHandling += '• O-RINGS / INVOICE: Keep weight. Leave Length, Width, Height fields blank — do not enter zero. Use the PO name exactly as given — do not abbreviate or infer.\n';
+      if (flagProdType) specialHandling += '• BRIEF DESCRIPTION: Use "Product Type" column as Brief description instead of "Description" column (applies to all documents unless overridden in Supplemental).\n';
+      if (flagNoBayRow) specialHandling += '• PALLET FORMAT: No Bay/Row data in any source document. Use short format: [Prefix]-Crate no.[#]\n';
+    }
+
+    // Output name
+    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const finalOutputName = outputName || `Alpha_Upload_${today}.xlsx`;
+
+    // Build prompt
+    const prompt = `You are populating an Alpha upload template (Excel, multi-sheet: Data / Supplier / Blue Water structure) from the source documents I have attached to this message.
+
+---
+SOURCE DOCUMENTS FOR THIS RUN
+---
+${docTable}
+---
+COLUMN MAPPING RULES
+---
+  TAG No           → Tag number
+                     If blank for a row, skip that row entirely.
+
+  Description      → Brief description
+                     Use as-is unless the "Product Type" flag is set (see Special Handling).
+
+  Quantity         → Quantity
+                     If blank but a tag is present, default to 1.
+
+  Gross Weight     → Weight
+                     Use the crate-level gross weight for all tag lines within that crate.
+
+  Packed dimensions → Length / Width / Height
+                     Convert to METRES (mm ÷ 1000, cm ÷ 100).
+                     Repeat the crate-level dimensions for every tag line in that crate.
+                     Leave blank (not zero) if no dimensions exist for the item type.
+
+  Pallet number format (full, when Bay and Row are present):
+    [Prefix] Bay [#] Row [#] Crate [#]
+    Example: PK43A Bay 10 Row 3 Crate 1
+
+  Pallet number format (short, when no Bay/Row data):
+    [Prefix]-Crate no.[#]
+    Example: PK43A-Crate no.1
+
+  Each source document must use its own unique prefix — never repeat a pallet number across documents.
+${specialHandling}
+---
+TAG NUMBER UNIQUENESS RULE
+---
+The target system (Ongoing) creates one item per tag number.
+If the same tag number appears on more than one line (different descriptions or different crates),
+make each instance unique by appending a suffix: TAG-1, TAG-2, TAG-3 …
+
+---
+FORMATTING RULES
+---
+• Decimal separator: use a full stop (.) — Australian English. Never use a comma as a decimal separator.
+• Numeric cells: weight, dimensions, quantity, and volume must be true Excel numeric values — not text.
+• Dimensions: always output in METRES.
+• Template structure: preserve the original Alpha upload template's sheet layout (Data / Supplier / Blue Water) and column order. Do NOT create a new flat sheet.
+
+---
+CONFIRM BEFORE GENERATING THE FILE
+---
+Before producing the output workbook, confirm:
+1. How many source documents were found and how many tag lines were extracted from each.
+2. Any tag numbers that needed uniqueness suffixes (-1, -2 …).
+3. Any rows skipped (no tag number).
+4. Any rows where quantity was defaulted to 1.
+5. Any fields that could not be determined and need user confirmation.
+
+Do NOT infer regulated fields (HS codes, declared values, shipper of record) — flag them as missing and ask.
+
+---
+OUTPUT FILE
+---
+Name the output workbook: ${finalOutputName}
+${supplemental ? `\n---\nSUPPLEMENTAL INFORMATION / OVERRIDES FOR THIS RUN\n---\n${supplemental}\n` : ''}`;
+
+    document.getElementById('output-box').textContent = prompt;
+    const sec = document.getElementById('output-section');
+    sec.style.display = 'block';
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const btn = document.getElementById('copy-btn');
+    btn.classList.remove('copied');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+  }
+
+  function copyPrompt() {
+    const text = document.getElementById('output-box').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 12 4 9"/></svg> Copied!`;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+      }, 2500);
+    });
+  }
+
+  // Start with 3 empty rows
+  addDocRow();
+  addDocRow();
+  addDocRow();
+</script>
+</body>
+</html>

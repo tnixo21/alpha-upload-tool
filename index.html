@@ -15,7 +15,6 @@
     --accent: #4f8ef7;
     --accent2: #7c5cfc;
     --success: #36d399;
-    --warning: #f59e0b;
     --danger: #f87171;
     --text: #e2e8f0;
     --muted: #64748b;
@@ -30,13 +29,9 @@
     padding: 32px 16px;
   }
 
-  .container { max-width: 900px; margin: 0 auto; }
+  .container { max-width: 860px; margin: 0 auto; }
 
-  /* Header */
-  .header {
-    text-align: center;
-    margin-bottom: 40px;
-  }
+  .header { text-align: center; margin-bottom: 40px; }
   .header h1 {
     font-size: 2rem;
     font-weight: 700;
@@ -47,7 +42,6 @@
   }
   .header p { color: var(--muted); font-size: 0.95rem; }
 
-  /* Cards */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -62,7 +56,6 @@
     font-size: 1rem;
     font-weight: 600;
     margin-bottom: 18px;
-    color: var(--text);
   }
   .card-title .step {
     background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -70,22 +63,19 @@
     width: 26px; height: 26px;
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    flex-shrink: 0;
+    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
   }
 
-  /* Form elements */
   label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--muted);
     margin-bottom: 5px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  input[type="text"], textarea, select {
+  input[type="text"], textarea {
     width: 100%;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -97,28 +87,37 @@
     transition: border-color 0.2s;
     font-family: inherit;
   }
-  input[type="text"]:focus, textarea:focus, select:focus {
-    border-color: var(--accent);
-  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--accent); }
   input::placeholder, textarea::placeholder { color: var(--muted); }
-  select option { background: var(--surface2); }
-
   textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
 
-  /* Document rows table */
+  .attach-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(79,142,247,0.07);
+    border: 1px solid rgba(79,142,247,0.2);
+    border-radius: 8px;
+    padding: 13px 16px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #94afd4;
+  }
+  .attach-hint svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+
   .doc-table { width: 100%; border-collapse: collapse; }
   .doc-table th {
     text-align: left;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--muted);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    padding: 0 8px 10px;
+    padding: 0 6px 10px;
   }
-  .doc-row td { padding: 5px 4px; vertical-align: top; }
-  .doc-row td input { margin: 0; }
-  .doc-row td.del-col { width: 36px; padding-top: 5px; text-align: center; }
+  .doc-row td { padding: 4px 3px; vertical-align: top; }
+  .doc-row td.del-col { width: 34px; padding-top: 4px; text-align: center; }
 
   .btn-del {
     background: none;
@@ -148,24 +147,21 @@
   }
   .btn-add:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Toggles */
-  .toggle-group { display: flex; flex-direction: column; gap: 10px; }
-  .toggle-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .toggle-row:hover { border-color: var(--accent); }
-  .toggle-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
-  .toggle-row .toggle-label { font-size: 0.9rem; font-weight: 500; }
-  .toggle-row .toggle-desc { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  .hint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
 
-  /* Generate button */
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(79,142,247,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(79,142,247,0.25);
+  }
+
   .btn-generate {
     width: 100%;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -183,15 +179,13 @@
   .btn-generate:hover { opacity: 0.9; }
   .btn-generate:active { transform: scale(0.99); }
 
-  /* Output area */
   #output-section { display: none; }
   .output-header {
-    display: flex;
-    align-items: center;
+    display: flex; align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
   }
-  .output-header h3 { font-size: 1rem; font-weight: 600; }
+  .output-header h3 { font-size: 0.95rem; font-weight: 600; }
   .btn-copy {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -222,40 +216,12 @@
     overflow-y: auto;
   }
 
-  .hint {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-top: 6px;
-    line-height: 1.5;
-  }
-
-  .badge {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 99px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .badge-blue { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
-
-  .divider {
-    height: 1px;
-    background: var(--border);
-    margin: 16px 0;
-  }
-
-  /* Scroll bar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 
-  @media (max-width: 600px) {
-    .doc-table th:nth-child(3),
-    .doc-table th:nth-child(4),
-    .doc-row td:nth-child(3),
-    .doc-row td:nth-child(4) { display: none; }
+  @media (max-width: 580px) {
+    .doc-table th:nth-child(2), .doc-row td:nth-child(2) { display: none; }
   }
 </style>
 </head>
@@ -264,85 +230,44 @@
 
   <div class="header">
     <h1>Alpha Upload Prompt Builder</h1>
-    <p>Fill in your job details below — click <strong>Generate Prompt</strong> — paste into Claude with your files attached.</p>
+    <p>Fill in your job details — click <strong>Generate Prompt</strong> — paste into Claude with your files attached.</p>
   </div>
 
-  <!-- Step 1: Output file name -->
   <div class="card">
-    <div class="card-title"><span class="step">1</span> Output file name <span class="badge badge-blue">Optional</span></div>
+    <div class="card-title"><span class="step">1</span> Output file name <span class="badge">Optional</span></div>
     <label>Output file name (leave blank for auto-generated)</label>
     <input type="text" id="output-name" placeholder="e.g. Alpha_Upload_PK43_20260527.xlsx">
   </div>
 
-  <!-- Step 2: Source documents -->
   <div class="card">
-    <div class="card-title"><span class="step">2</span> Source documents</div>
+    <div class="card-title"><span class="step">2</span> Documents to attach</div>
+
+    <div class="attach-hint">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
+      </svg>
+      <span>Attach each Excel or PDF file to the Claude message. Enter the filename here exactly as attached so Claude can match them. Claude will auto-detect the document type — add any special instructions in the Notes column.</span>
+    </div>
+
     <table class="doc-table">
       <thead>
         <tr>
-          <th style="width:22%">File name</th>
-          <th style="width:16%">Purchase Order</th>
-          <th style="width:14%">Pallet prefix</th>
-          <th style="width:12%">Bay</th>
-          <th style="width:12%">Row (if known)</th>
-          <th style="width:20%">Notes</th>
-          <th style="width:36px"></th>
+          <th style="width:28%">File name (as attached)</th>
+          <th style="width:20%">Purchase Order</th>
+          <th style="width:18%">Pallet prefix</th>
+          <th style="width:30%">Notes</th>
+          <th style="width:34px"></th>
         </tr>
       </thead>
-      <tbody id="doc-rows">
-        <!-- rows injected by JS -->
-      </tbody>
+      <tbody id="doc-rows"></tbody>
     </table>
     <button class="btn-add" onclick="addDocRow()">+ Add document</button>
-    <p class="hint">Tip: If Bay/Row data exists in the source file, leave those fields blank here — Claude will extract them. Only fill them in if the source doc doesn't contain them.</p>
+    <p class="hint">Notes examples: “use Product Type as description” · “Bay 10 Row 3” · “weight only, no dimensions” · “tag numbers are in column F”</p>
   </div>
 
-  <!-- Step 3: Document type overrides -->
   <div class="card">
-    <div class="card-title"><span class="step">3</span> Special handling flags <span class="badge badge-blue">Check all that apply</span></div>
-    <div class="toggle-group">
-      <label class="toggle-row" for="flag-bray">
-        <input type="checkbox" id="flag-bray">
-        <div>
-          <div class="toggle-label">Bray-style semi-structured Excel</div>
-          <div class="toggle-desc">Header row is mid-sheet. Crate weight &amp; dimensions appear once per crate block and must be inherited by all tag lines within that crate.</div>
-        </div>
-      </label>
-      <label class="toggle-row" for="flag-pdf">
-        <input type="checkbox" id="flag-pdf">
-        <div>
-          <div class="toggle-label">Allied Heat Transfer / PDF packing list</div>
-          <div class="toggle-desc">Extract floor-loaded equipment and crate-based spares separately. Use article-level rows for commissioning spares. Use item description as tag number where no explicit tag exists.</div>
-        </div>
-      </label>
-      <label class="toggle-row" for="flag-orings">
-        <input type="checkbox" id="flag-orings">
-        <div>
-          <div class="toggle-label">O-rings / invoice-style document (PK47)</div>
-          <div class="toggle-desc">Keep weight. Leave all dimension fields blank. Use the PO name exactly as entered — do not infer or abbreviate it.</div>
-        </div>
-      </label>
-      <label class="toggle-row" for="flag-prodtype">
-        <input type="checkbox" id="flag-prodtype">
-        <div>
-          <div class="toggle-label">Use &quot;Product Type&quot; as Brief description</div>
-          <div class="toggle-desc">For documents where the &quot;Description&quot; column is too generic. Applies to all documents in this run unless overridden in Supplemental.</div>
-        </div>
-      </label>
-      <label class="toggle-row" for="flag-noBayRow">
-        <input type="checkbox" id="flag-noBayRow">
-        <div>
-          <div class="toggle-label">No Bay / Row data in any source document</div>
-          <div class="toggle-desc">Use the short pallet format: [Prefix]-Crate no.[#] instead of the full Bay/Row format.</div>
-        </div>
-      </label>
-    </div>
-  </div>
-
-  <!-- Step 4: Supplemental info -->
-  <div class="card">
-    <div class="card-title"><span class="step">4</span> Supplemental information <span class="badge badge-blue">Optional</span></div>
-    <label>Extra context, overrides, or corrections for this specific run</label>
+    <div class="card-title"><span class="step">3</span> Supplemental information <span class="badge">Optional</span></div>
+    <label>Extra context, overrides, or corrections for this run</label>
     <textarea id="supplemental" placeholder="Examples:
 • Crate 5 in document 2 has no weight listed — use 120 kg
 • Tag EB-400 appears twice but both are the same item — do not add suffixes
@@ -350,13 +275,11 @@
 • For ITEM-04/05/06 rows, use the Description as the article/tag number"></textarea>
   </div>
 
-  <!-- Generate -->
   <button class="btn-generate" onclick="generatePrompt()">Generate Prompt →</button>
 
-  <!-- Output -->
   <div id="output-section" class="card">
     <div class="output-header">
-      <h3>Your prompt — copy and paste into Claude with your files attached</h3>
+      <h3>Copy and paste into Claude — attach your files first</h3>
       <button class="btn-copy" id="copy-btn" onclick="copyPrompt()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         Copy
@@ -366,11 +289,10 @@
   </div>
 
 </div>
-
 <script>
   let rowCount = 0;
 
-  function addDocRow(fileName='', po='', prefix='', bay='', row='', notes='') {
+  function addDocRow(file='', po='', prefix='', notes='') {
     rowCount++;
     const id = rowCount;
     const tbody = document.getElementById('doc-rows');
@@ -378,16 +300,16 @@
     tr.className = 'doc-row';
     tr.id = `row-${id}`;
     tr.innerHTML = `
-      <td><input type="text" placeholder="filename.xlsx" value="${fileName}" data-field="file"></td>
-      <td><input type="text" placeholder="e.g. PK43A" value="${po}" data-field="po"></td>
-      <td><input type="text" placeholder="e.g. PK43A" value="${prefix}" data-field="prefix"></td>
-      <td><input type="text" placeholder="e.g. 10" value="${bay}" data-field="bay"></td>
-      <td><input type="text" placeholder="extract from doc" value="${row}" data-field="row"></td>
-      <td><input type="text" placeholder="optional notes" value="${notes}" data-field="notes"></td>
+      <td><input type="text" placeholder="BrayValves_PK43.xlsx" value="${esc(file)}" data-field="file"></td>
+      <td><input type="text" placeholder="e.g. PK43A" value="${esc(po)}" data-field="po"></td>
+      <td><input type="text" placeholder="e.g. PK43A" value="${esc(prefix)}" data-field="prefix"></td>
+      <td><input type="text" placeholder="optional notes" value="${esc(notes)}" data-field="notes"></td>
       <td class="del-col"><button class="btn-del" onclick="delRow(${id})" title="Remove">×</button></td>
     `;
     tbody.appendChild(tr);
   }
+
+  function esc(s) { return s.replace(/"/g, '&quot;'); }
 
   function delRow(id) {
     const el = document.getElementById(`row-${id}`);
@@ -395,145 +317,129 @@
   }
 
   function getDocRows() {
-    const rows = document.querySelectorAll('.doc-row');
-    return Array.from(rows).map(tr => ({
+    return Array.from(document.querySelectorAll('.doc-row')).map(tr => ({
       file:   tr.querySelector('[data-field="file"]').value.trim(),
       po:     tr.querySelector('[data-field="po"]').value.trim(),
       prefix: tr.querySelector('[data-field="prefix"]').value.trim(),
-      bay:    tr.querySelector('[data-field="bay"]').value.trim(),
-      row:    tr.querySelector('[data-field="row"]').value.trim(),
       notes:  tr.querySelector('[data-field="notes"]').value.trim(),
     })).filter(r => r.file || r.po);
   }
 
   function generatePrompt() {
-    const docs = getDocRows();
+    const docs       = getDocRows();
     const outputName = document.getElementById('output-name').value.trim();
     const supplemental = document.getElementById('supplemental').value.trim();
+    const today      = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const finalName  = outputName || `Alpha_Upload_${today}.xlsx`;
 
-    const flagBray     = document.getElementById('flag-bray').checked;
-    const flagPdf      = document.getElementById('flag-pdf').checked;
-    const flagOrings   = document.getElementById('flag-orings').checked;
-    const flagProdType = document.getElementById('flag-prodtype').checked;
-    const flagNoBayRow = document.getElementById('flag-noBayRow').checked;
-
-    // Build doc table text
-    let docTable = '';
+    let docBlock = '';
     if (docs.length === 0) {
-      docTable = '(No documents entered — attach your files and describe them in Supplemental Information)\n';
+      docBlock = '  (No documents listed — please identify the attached files in Supplemental)\n';
     } else {
       docs.forEach((d, i) => {
-        docTable += `  Document ${i+1}:\n`;
-        if (d.file)   docTable += `    File:           ${d.file}\n`;
-        if (d.po)     docTable += `    Purchase Order: ${d.po}\n`;
-        if (d.prefix) docTable += `    Pallet prefix:  ${d.prefix}\n`;
-        if (d.bay)    docTable += `    Bay:            ${d.bay} (override — Bay is not in source doc)\n`;
-        else          docTable += `    Bay:            Extract from source document\n`;
-        if (d.row)    docTable += `    Row:            ${d.row} (override — Row is not in source doc)\n`;
-        else          docTable += `    Row:            Extract from source document\n`;
-        if (d.notes)  docTable += `    Notes:          ${d.notes}\n`;
-        docTable += '\n';
+        docBlock += `  Document ${i+1}:\n`;
+        if (d.file)   docBlock += `    Attached file:  ${d.file}\n`;
+        if (d.po)     docBlock += `    Purchase Order: ${d.po}\n`;
+        if (d.prefix) docBlock += `    Pallet prefix:  ${d.prefix}\n`;
+        if (d.notes)  docBlock += `    Notes:          ${d.notes}\n`;
+        docBlock += '\n';
       });
     }
 
-    // Special handling section
-    let specialHandling = '';
-    if (flagBray || flagPdf || flagOrings || flagProdType || flagNoBayRow) {
-      specialHandling = '\n--- SPECIAL HANDLING FLAGS ---\n';
-      if (flagBray)     specialHandling += '• BRAY-STYLE EXCEL: Header row is mid-sheet. Scan for it. Crate weight and dimensions appear once per crate block — inherit them for all tag lines in that crate. Skip rows with no TAG No.\n';
-      if (flagPdf)      specialHandling += '• PDF PACKING LIST: Extract floor-loaded equipment and crate-based spares separately. Use article-level rows for commissioning spares (not summary rows). Where a spare line has no explicit tag, use the item description as the tag/article number.\n';
-      if (flagOrings)   specialHandling += '• O-RINGS / INVOICE: Keep weight. Leave Length, Width, Height fields blank — do not enter zero. Use the PO name exactly as given — do not abbreviate or infer.\n';
-      if (flagProdType) specialHandling += '• BRIEF DESCRIPTION: Use "Product Type" column as Brief description instead of "Description" column (applies to all documents unless overridden in Supplemental).\n';
-      if (flagNoBayRow) specialHandling += '• PALLET FORMAT: No Bay/Row data in any source document. Use short format: [Prefix]-Crate no.[#]\n';
-    }
-
-    // Output name
-    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-    const finalOutputName = outputName || `Alpha_Upload_${today}.xlsx`;
-
-    // Build prompt
-    const prompt = `You are populating an Alpha upload template (Excel, multi-sheet: Data / Supplier / Blue Water structure) from the source documents I have attached to this message.
+    const prompt =
+`I need you to populate an Alpha upload template (Excel, multi-sheet: Data / Supplier / Blue Water structure) using the files I have attached to this message.
 
 ---
-SOURCE DOCUMENTS FOR THIS RUN
+DOCUMENTS
 ---
-${docTable}
+${docBlock}
 ---
-COLUMN MAPPING RULES
+DOCUMENT TYPE — AUTO-DETECT
 ---
-  TAG No           → Tag number
-                     If blank for a row, skip that row entirely.
+Examine each attached file and determine its type. Apply the appropriate rules below.
+If you are unsure about the structure of a file, ask before proceeding — do not guess at data.
 
-  Description      → Brief description
-                     Use as-is unless the "Product Type" flag is set (see Special Handling).
+  Semi-structured Excel packing list (e.g. Bray-style):
+    • The real header row may sit mid-sheet — scan for it (look for TAG No, Description, Gross Weight, Crate).
+    • Crate-level weight and dimensions appear once per crate block; assign them to every tag line in that crate.
+    • Skip any row that has no TAG No value.
 
-  Quantity         → Quantity
-                     If blank but a tag is present, default to 1.
+  PDF packing list:
+    • Extract floor-loaded equipment and crate-based spares separately.
+    • For commissioning spares, use one row per article (not a summary row).
+    • Where a spare line has no explicit tag, use the item description as the tag/article number.
 
-  Gross Weight     → Weight
-                     Use the crate-level gross weight for all tag lines within that crate.
+  Invoice-style document (e.g. O-rings, small parts):
+    • Keep weight. Leave Length, Width, Height blank — do not enter zero.
+    • Use the PO name exactly as given in the document list above.
 
+  If the document type is something else, describe what you see and ask how to handle it.
+
+---
+COLUMN MAPPING
+---
+  TAG No            → Tag number       Skip row entirely if blank.
+  Description       → Brief description  Use as-is unless Notes say otherwise.
+  Quantity          → Quantity         Default to 1 if blank but tag is present.
+  Gross Weight      → Weight           Crate-level value, repeated per tag line.
   Packed dimensions → Length / Width / Height
-                     Convert to METRES (mm ÷ 1000, cm ÷ 100).
-                     Repeat the crate-level dimensions for every tag line in that crate.
-                     Leave blank (not zero) if no dimensions exist for the item type.
-
-  Pallet number format (full, when Bay and Row are present):
-    [Prefix] Bay [#] Row [#] Crate [#]
-    Example: PK43A Bay 10 Row 3 Crate 1
-
-  Pallet number format (short, when no Bay/Row data):
-    [Prefix]-Crate no.[#]
-    Example: PK43A-Crate no.1
-
-  Each source document must use its own unique prefix — never repeat a pallet number across documents.
-${specialHandling}
----
-TAG NUMBER UNIQUENESS RULE
----
-The target system (Ongoing) creates one item per tag number.
-If the same tag number appears on more than one line (different descriptions or different crates),
-make each instance unique by appending a suffix: TAG-1, TAG-2, TAG-3 …
+                      Convert to METRES (mm ÷ 1000, cm ÷ 100).
+                      Repeat crate-level dimensions for every tag line in that crate.
+                      Leave blank (not zero) if the item type has no dimensions.
 
 ---
-FORMATTING RULES
+PALLET NUMBER FORMAT
 ---
-• Decimal separator: use a full stop (.) — Australian English. Never use a comma as a decimal separator.
-• Numeric cells: weight, dimensions, quantity, and volume must be true Excel numeric values — not text.
-• Dimensions: always output in METRES.
-• Template structure: preserve the original Alpha upload template's sheet layout (Data / Supplier / Blue Water) and column order. Do NOT create a new flat sheet.
+  Default (no Bay/Row data):
+    [Prefix]-Crate no.[#]   e.g. PK43A-Crate no.1
+
+  When Bay and Row information is available (from the source file or the Notes above):
+    [Prefix] Bay [#] Row [#] Crate [#]   e.g. PK43A Bay 10 Row 3 Crate 1
+
+  Each document must use its own unique prefix — never repeat a pallet number across documents.
 
 ---
-CONFIRM BEFORE GENERATING THE FILE
+TAG NUMBER UNIQUENESS
 ---
-Before producing the output workbook, confirm:
-1. How many source documents were found and how many tag lines were extracted from each.
-2. Any tag numbers that needed uniqueness suffixes (-1, -2 …).
-3. Any rows skipped (no tag number).
-4. Any rows where quantity was defaulted to 1.
-5. Any fields that could not be determined and need user confirmation.
-
-Do NOT infer regulated fields (HS codes, declared values, shipper of record) — flag them as missing and ask.
+  The target system (Ongoing) creates one item per tag number.
+  If the same tag number appears on more than one line, make each unique with a suffix:
+    TAG → TAG-1, TAG-2, TAG-3 …
 
 ---
-OUTPUT FILE
+FORMATTING
 ---
-Name the output workbook: ${finalOutputName}
-${supplemental ? `\n---\nSUPPLEMENTAL INFORMATION / OVERRIDES FOR THIS RUN\n---\n${supplemental}\n` : ''}`;
+  • Decimal separator: full stop (.) — Australian English. Never a comma.
+  • Numeric cells: weight, dimensions, quantity must be true Excel numbers, not text.
+  • Dimensions: always in METRES.
+  • Sheet structure: preserve the original Alpha upload template layout. Do NOT create a flat sheet.
+
+---
+BEFORE GENERATING THE FILE — CONFIRM
+---
+  1. How many tag lines were extracted from each document.
+  2. Any rows skipped (no tag number) and any quantities defaulted to 1.
+  3. Any tag numbers that needed uniqueness suffixes.
+  4. Anything you could not determine — ask rather than assume.
+
+  Do NOT infer regulated fields (HS codes, declared value, shipper of record). Flag and ask.
+
+---
+OUTPUT
+---
+  Name the workbook: ${finalName}
+${supplemental ? `\n---\nSUPPLEMENTAL / OVERRIDES\n---\n${supplemental}\n` : ''}`;
 
     document.getElementById('output-box').textContent = prompt;
     const sec = document.getElementById('output-section');
     sec.style.display = 'block';
     sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
     const btn = document.getElementById('copy-btn');
     btn.classList.remove('copied');
     btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
   }
 
   function copyPrompt() {
-    const text = document.getElementById('output-box').textContent;
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(document.getElementById('output-box').textContent).then(() => {
       const btn = document.getElementById('copy-btn');
       btn.classList.add('copied');
       btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 12 4 9"/></svg> Copied!`;
@@ -544,7 +450,6 @@ ${supplemental ? `\n---\nSUPPLEMENTAL INFORMATION / OVERRIDES FOR THIS RUN\n---\
     });
   }
 
-  // Start with 3 empty rows
   addDocRow();
   addDocRow();
   addDocRow();

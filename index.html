@@ -112,7 +112,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <!-- ONE-TIME SETUP -->
 <div id="setup-section">
   <div class="setup-banner">
-    <h2>One-time setup &#8212; upload your Alpha template</h2>
+    <h2>One-time setup — upload your Alpha template</h2>
     <p>The template is saved in your browser. You only need to do this once.</p>
     <div class="dz" id="setup-dz" onclick="document.getElementById('setup-input').click()">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -137,7 +137,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
     <div class="dz" id="src-dz" onclick="document.getElementById('src-input').click()">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
       <p class="primary">Drop Excel or PDF files here, or click to browse</p>
-      <p class="secondary">Multiple files supported &nbsp;&middot;&nbsp; .xlsx .xls .pdf</p>
+      <p class="secondary">Multiple files supported &nbsp;·&nbsp; .xlsx .xls .pdf</p>
     </div>
     <input type="file" id="src-input" accept=".xlsx,.xls,.pdf" multiple style="display:none">
     <div class="file-list" id="file-list"></div>
@@ -174,7 +174,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
       <input type="text" id="out-name" placeholder="Alpha_Upload_YYYYMMDD.xlsx">
     </div>
     <button class="btn-generate" onclick="generate()">Generate &amp; Download</button>
-    <div class="hint" style="margin-top:10px;text-align:center">Downloads an .xlsx file &mdash; open in Excel to review or print.</div>
+    <div class="hint" style="margin-top:10px;text-align:center">Downloads an .xlsx file — open in Excel to review or print.</div>
   </div>
 
   <div class="footer">
@@ -185,7 +185,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 </div><!-- /container -->
 
 <script>
-// ── TEMPLATE STORAGE ───────────────────────────────────────
+// ── TEMPLATE STORAGE ─────────────────────────────────────────────────
 const TPL_KEY = 'alpha_tpl_v1';
 const TPL_NAME_KEY = 'alpha_tpl_name_v1';
 
@@ -217,7 +217,7 @@ function resetTemplate() {
   startOver();
 }
 
-// ── INIT ───────────────────────────────────────────────────
+// ── INIT ─────────────────────────────────────────────────────
 (function init() {
   if (templateSaved()) {
     showMain();
@@ -243,7 +243,7 @@ function showMain() {
   document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
 }
 
-// ── DROP ZONES ─────────────────────────────────────────────
+// ── DROP ZONES ─────────────────────────────────────────────────
 function wireDZ(dzId, inputId, cb) {
   const dz = document.getElementById(dzId);
   const inp = document.getElementById(inputId);
@@ -253,7 +253,7 @@ function wireDZ(dzId, inputId, cb) {
   inp.addEventListener('change', () => { cb(inp.files); inp.value = ''; });
 }
 
-// ── FILE LIST ──────────────────────────────────────────────
+// ── FILE LIST ──────────────────────────────────────────────────
 let uid = 1;
 const docs = [];
 
@@ -286,7 +286,7 @@ function renderFile(id, name, isPdf) {
       </div>
       <div class="field-group span2">
         <label>Notes from paperwork</label>
-        <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
+        <textarea placeholder="e.g. Bay 10 Row 3 &middot; weight only, no dimensions &middot; use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
       </div>
     </div>`;
   document.getElementById('file-list').appendChild(div);
@@ -302,7 +302,7 @@ function removeFile(id) {
   if (!docs.length) document.getElementById('extract-btn').style.display = 'none';
 }
 
-// ── SHARED PARSING HELPERS ────────────────────────────────
+// ── EXCEL PARSING ──────────────────────────────────────────────
 const KW = {
   tag:   ['tag no','tag number','tag#','tag',
           'serial no','serial number',
@@ -330,12 +330,11 @@ const kw = (c, list) => list.some(k => String(c ?? '').toLowerCase().trim().incl
 const findHdr = rows => { for (let i = 0; i < Math.min(rows.length, 50); i++) if (rows[i].some(c => kw(c,KW.tag)) && rows[i].some(c => kw(c,KW.desc))) return i; return -1; };
 const buildCM = hdr => { const m = {}; hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; }); return m; };
 const unitOf = c => { const s=String(c??'').toLowerCase(); return s.includes('(mm)')||s.endsWith('mm')?'mm':s.includes('(cm)')||s.endsWith('cm')?'cm':null; };
-// Smart number parser: handles "1,100.00" (thousands+decimal) and EU "1.100,00"
+// Smart number parser: handles "1,100.00" (thousands+decimal) and "1.100,00" (EU format)
 const _pn = s => { s=String(s).trim(); if(s.includes(',')&&s.includes('.')) s=s.replace(/,/g,''); else s=s.replace(/,/g,'.'); return parseFloat(s.replace(/[^0-9.]/g,'')); };
 const toM = (v,u) => { const n=_pn(v); if(isNaN(n)||!n) return ''; return u==='mm'?+((n/1000).toFixed(4)):u==='cm'?+((n/100).toFixed(4)):n>20?+((n/1000).toFixed(4)):+(n.toFixed(4)); };
 const toN = v => { if(v===''||v==null) return ''; const n=_pn(v); return isNaN(n)?'':n; };
 
-// ── EXCEL PARSING ──────────────────────────────────────────
 function parseXL(buf) {
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -368,7 +367,7 @@ function parseXL(buf) {
   return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
 }
 
-// ── PDF PARSING ──────────────────────────────────────────
+// ── PDF PARSING ──────────────────────────────────────────────
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -418,8 +417,8 @@ async function parsePDF(buf) {
 
   const hdrItems = rawRows[hi];
 
-  // Merge next row if it looks like a header continuation
-  // (e.g. SchuF two-line headers: "Unit Net"/"Weight", "Order"/"No.", "Customer"/"Part No.")
+  // Merge the next row if it looks like a header continuation (e.g. two-line column headers:
+  // "Unit Net" / "Weight", "Order" / "No.", "Customer" / "Part No.")
   let combinedHdrText = [...textRows[hi]];
   if (hi + 1 < rawRows.length) {
     const nextRow = rawRows[hi + 1];
@@ -438,15 +437,19 @@ async function parsePDF(buf) {
   const cm = buildCM(combinedHdrText);
   if (cm.tag === undefined) return { rows: [], warn: 'No tag/part/serial column found in PDF — add rows manually.' };
 
-  // Build x-range per detected column so data items can be assigned by x-position
+  // Build x-range per column key so we can assign data items by x-position
   const colDefs = Object.entries(cm)
     .filter(([, ci]) => ci !== undefined)
     .map(([k, ci]) => ({ k, x: hdrItems[ci] ? hdrItems[ci].x : 0 }))
     .sort((a, b) => a.x - b.x);
 
+  // Left boundary: 30pt before the first header item so text from side-column
+  // address blocks (shipper / consignee) is not captured as tag data.
+  const tableLeftBound = colDefs[0].x - 30;
+
   const colRanges = colDefs.map((col, i) => ({
     k: col.k,
-    xStart: i === 0 ? 0 : (colDefs[i-1].x + col.x) / 2,
+    xStart: i === 0 ? tableLeftBound : (colDefs[i-1].x + col.x) / 2,
     xEnd:   i === colDefs.length - 1 ? Infinity : (col.x + colDefs[i+1].x) / 2
   }));
 
@@ -455,39 +458,53 @@ async function parsePDF(buf) {
     return null;
   }
 
+  // Detect units from merged header text
   const uL = unitOf(combinedHdrText[cm.len]), uW = unitOf(combinedHdrText[cm.wid]), uH = unitOf(combinedHdrText[cm.hgt]);
 
-  // Free-text crate header parser (SchuF-style: "Box 1/2...", "Gross Weight X kg", "Dimensions L x W x H mm")
+  // Reject tag-column values that look like addresses/sentences rather than part codes.
+  function looksLikeTag(s) {
+    if (!s || s.length > 60) return false;
+    let run = 0;
+    for (const w of s.split(/\s+/)) {
+      if (/^[a-z]{3,}$/i.test(w)) { if (++run >= 4) return false; } else run = 0;
+    }
+    return true;
+  }
+
+  // Free-text crate header parser (SchuF/similar: "Box 1/2...", "Gross Weight X kg", "Dimensions L x W x H mm")
+  // Returns an object that may carry any combination of num / wt / l,w,h,u on a single row.
   function parseFreeTextCrate(rowText) {
     const t = rowText.join(' ');
-    const boxM = t.match(/\bbox\s+(\d+)\s*[\/\-]/i);
-    if (boxM) return { type:'box', num: boxM[1] };
+    const result = {};
+    // Box/crate number — matches "Box 1", "Box 1/2", "Box No. 1", "Crate 2", etc.
+    const boxM = t.match(/\b(?:box|crate|case|package|pallet)\s*(?:no\.?\s*)?(\d+)\b/i);
+    if (boxM) result.num = boxM[1];
+    // Gross weight in kg
     const wtM = t.match(/gross\s*weight\s*:?\s*([\d,]+\.?\d*)\s*kgs?/i);
-    if (wtM) return { type:'wt', wt: _pn(wtM[1]) };
-    const dimM = t.match(/([\d,]+\.?\d*)\s*x\s*([\d,]+\.?\d*)\s*x\s*([\d,]+\.?\d*)\s*(mm|cm|m)\b/i);
-    if (dimM) return { type:'dim', l:dimM[1], w:dimM[2], h:dimM[3], u:dimM[4].toLowerCase() };
-    return null;
+    if (wtM) result.wt = _pn(wtM[1]);
+    // Dimensions L x W x H with unit
+    const dimM = t.match(/([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*(mm|cm|m)\b/i);
+    if (dimM) { result.l=dimM[1]; result.w=dimM[2]; result.h=dimM[3]; result.u=dimM[4].toLowerCase(); }
+    return (result.num || result.wt != null || result.l) ? result : null;
   }
 
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
+  const dataStart = hi + 1;
 
-  for (let i = hi + 1; i < rawRows.length; i++) {
+  for (let i = dataStart; i < rawRows.length; i++) {
     const rowText = textRows[i];
 
-    // Skip repeated header rows (common on each page of multi-page PDFs)
+    // Skip repeated header rows (appear on each page of multi-page PDFs)
     if (rowText.some(c => kw(c, KW.tag)) && rowText.some(c => kw(c, KW.desc))) continue;
 
-    // Try to parse as free-text crate header
+    // Try to parse as free-text crate header (e.g. SchuF box summary lines).
+    // A single row may carry num + wt + dims together.
     const ftc = parseFreeTextCrate(rowText);
     if (ftc) {
-      if (ftc.type === 'box') cr.num = ftc.num;
-      else if (ftc.type === 'wt') cr.wt = ftc.wt;
-      else if (ftc.type === 'dim') {
-        cr.len = toM(ftc.l, ftc.u);
-        cr.wid = toM(ftc.w, ftc.u);
-        cr.hgt = toM(ftc.h, ftc.u);
-      }
+      if (ftc.num)  cr.num = ftc.num;
+      if (ftc.wt != null) cr.wt  = ftc.wt;
+      if (ftc.l)  { cr.len = toM(ftc.l, ftc.u); cr.wid = toM(ftc.w, ftc.u); cr.hgt = toM(ftc.h, ftc.u); }
       continue;
     }
 
@@ -516,7 +533,7 @@ async function parsePDF(buf) {
       if (wt) cr.wt = toN(wt); if (lv) cr.len = lv; if (wv) cr.wid = wv; if (hv) cr.hgt = hv;
       if (bay) cr.bay = bay; if (row) cr.row = row;
     }
-    if (!tag) continue;
+    if (!tag || !looksLikeTag(tag)) continue;
 
     out.push({ tag, desc: String(cells.desc ?? '').trim(), qty: toN(cells.qty) || 1,
       wt:  toN(wt  !== '' ? wt  : cr.wt),
@@ -553,7 +570,7 @@ function dedupTags(rows) {
   return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
 }
 
-// ── EXTRACT ────────────────────────────────────────────────
+// ── EXTRACT ────────────────────────────────────────────────────
 let previewRows = [];
 
 async function runExtract() {
@@ -585,7 +602,7 @@ async function runExtract() {
   document.getElementById('row-count').textContent = previewRows.length + ' rows extracted';
   renderTable();
 
-  btn.innerHTML = 'Preview extracted data &rarr;';
+  btn.innerHTML = 'Preview extracted data →';
   btn.disabled = false;
 
   document.getElementById('review-card').style.display = 'block';
@@ -595,7 +612,7 @@ async function runExtract() {
   document.getElementById('review-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── PREVIEW TABLE ──────────────────────────────────────────
+// ── PREVIEW TABLE ────────────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById('preview-body');
   tbody.innerHTML = '';
@@ -615,7 +632,7 @@ function upd(id,k,v){const r=previewRows.find(x=>x.id===id);if(r)r[k]=v;}
 function delR(id){previewRows=previewRows.filter(r=>r.id!==id);const t=document.getElementById('tr-'+id);if(t)t.remove();document.getElementById('row-count').textContent=previewRows.length+' rows';}
 function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};previewRows.push(r);document.getElementById('preview-body').appendChild(mkTr(r));document.getElementById('row-count').textContent=previewRows.length+' rows';document.getElementById('review-card').style.display='block';document.getElementById('gen-card').style.display='block';}
 
-// ── GENERATE ───────────────────────────────────────────────
+// ── GENERATE ─────────────────────────────────────────────────────
 function generate() {
   if (!previewRows.length) { alert('No rows to export.'); return; }
   const fname = document.getElementById('out-name').value.trim() || 'Alpha_Upload.xlsx';
@@ -668,7 +685,7 @@ function generate() {
   URL.revokeObjectURL(url);
 }
 
-// ── HELPERS ────────────────────────────────────────────────
+// ── HELPERS ──────────────────────────────────────────────────────
 function startOver() {
   docs.length = 0;
   previewRows = [];

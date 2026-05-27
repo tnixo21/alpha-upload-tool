@@ -3,456 +3,387 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alpha Upload Prompt Builder</title>
+<title>Alpha Upload Tool</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #22263a;
-    --border: #2e3348;
-    --accent: #4f8ef7;
-    --accent2: #7c5cfc;
-    --success: #36d399;
-    --danger: #f87171;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --radius: 10px;
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 32px 16px;
-  }
-
-  .container { max-width: 860px; margin: 0 auto; }
-
-  .header { text-align: center; margin-bottom: 40px; }
-  .header h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 8px;
-  }
-  .header p { color: var(--muted); font-size: 0.95rem; }
-
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 24px;
-    margin-bottom: 20px;
-  }
-  .card-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 18px;
-  }
-  .card-title .step {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: white;
-    width: 26px; height: 26px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
-  }
-
-  label {
-    display: block;
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-bottom: 5px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  input[type="text"], textarea {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--text);
-    font-size: 0.9rem;
-    padding: 9px 12px;
-    outline: none;
-    transition: border-color 0.2s;
-    font-family: inherit;
-  }
-  input[type="text"]:focus, textarea:focus { border-color: var(--accent); }
-  input::placeholder, textarea::placeholder { color: var(--muted); }
-  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
-
-  .attach-hint {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    background: rgba(79,142,247,0.07);
-    border: 1px solid rgba(79,142,247,0.2);
-    border-radius: 8px;
-    padding: 13px 16px;
-    margin-bottom: 20px;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: #94afd4;
-  }
-  .attach-hint svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
-
-  .doc-table { width: 100%; border-collapse: collapse; }
-  .doc-table th {
-    text-align: left;
-    font-size: 0.72rem;
-    color: var(--muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 0 6px 10px;
-  }
-  .doc-row td { padding: 4px 3px; vertical-align: top; }
-  .doc-row td.del-col { width: 34px; padding-top: 4px; text-align: center; }
-
-  .btn-del {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--danger);
-    border-radius: 6px;
-    width: 28px; height: 33px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background 0.15s;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .btn-del:hover { background: rgba(248,113,113,0.1); }
-
-  .btn-add {
-    margin-top: 12px;
-    background: none;
-    border: 1px dashed var(--border);
-    color: var(--muted);
-    border-radius: 7px;
-    padding: 8px 16px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    width: 100%;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-  .btn-add:hover { border-color: var(--accent); color: var(--accent); }
-
-  .hint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-
-  .badge {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 99px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: rgba(79,142,247,0.12);
-    color: var(--accent);
-    border: 1px solid rgba(79,142,247,0.25);
-  }
-
-  .btn-generate {
-    width: 100%;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: white;
-    border: none;
-    border-radius: var(--radius);
-    padding: 15px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-    font-family: inherit;
-    margin-bottom: 20px;
-  }
-  .btn-generate:hover { opacity: 0.9; }
-  .btn-generate:active { transform: scale(0.99); }
-
-  #output-section { display: none; }
-  .output-header {
-    display: flex; align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  .output-header h3 { font-size: 0.95rem; font-weight: 600; }
-  .btn-copy {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 7px;
-    padding: 7px 16px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .btn-copy:hover { border-color: var(--success); color: var(--success); }
-  .btn-copy.copied { border-color: var(--success); color: var(--success); background: rgba(54,211,153,0.08); }
-
-  #output-box {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.82rem;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #cbd5e1;
-    max-height: 500px;
-    overflow-y: auto;
-  }
-
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-
-  @media (max-width: 580px) {
-    .doc-table th:nth-child(2), .doc-row td:nth-child(2) { display: none; }
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3348;
+  --accent:#4f8ef7;--accent2:#7c5cfc;--success:#36d399;--danger:#f87171;
+  --warning:#f59e0b;--text:#e2e8f0;--muted:#64748b;--radius:10px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 16px}
+.container{max-width:1060px;margin:0 auto}
+.header{text-align:center;margin-bottom:36px}
+.header h1{font-size:1.9rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.header p{color:var(--muted);font-size:0.92rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px}
+.card-title{display:flex;align-items:center;gap:10px;font-size:.95rem;font-weight:600;margin-bottom:16px}
+.step{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
+.drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .18s;color:var(--muted)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.05)}
+.drop-zone.filled{border-style:solid;border-color:var(--success);color:var(--success)}
+.drop-zone p{margin:4px 0;font-size:.88rem}
+.drop-zone .sub{font-size:.76rem;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th{text-align:left;font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:5px 8px;border-bottom:1px solid var(--border)}
+td{padding:4px 4px;vertical-align:middle}
+tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+.tbl-scroll{overflow-x:auto;margin-bottom:10px}
+input[type=text]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.84rem;padding:5px 9px;outline:none;font-family:inherit;width:100%;transition:border-color .15s}
+input[type=text]:focus{border-color:var(--accent)}
+input::placeholder{color:var(--muted)}
+.btn-main{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);padding:13px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .2s,transform .1s;margin-bottom:18px}
+.btn-main:hover{opacity:.88}
+.btn-main:active{transform:scale(.99)}
+.btn-main:disabled{opacity:.35;cursor:not-allowed}
+.btn-add{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:.82rem;width:100%;transition:all .15s;font-family:inherit;margin-top:10px}
+.btn-add:hover{border-color:var(--accent);color:var(--accent)}
+.btn-del{background:none;border:1px solid var(--border);color:var(--danger);border-radius:5px;width:26px;height:28px;cursor:pointer;font-size:.9rem;transition:background .15s;line-height:1}
+.btn-del:hover{background:rgba(248,113,113,.1)}
+.badge{display:inline-flex;align-items:center;font-size:.66rem;font-weight:600;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.b-blue{background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.25)}
+.b-green{background:rgba(54,211,153,.12);color:var(--success);border:1px solid rgba(54,211,153,.25)}
+.b-orange{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.25)}
+.b-red{background:rgba(248,113,113,.12);color:var(--danger);border:1px solid rgba(248,113,113,.25)}
+.b-gray{background:rgba(100,116,139,.12);color:var(--muted);border:1px solid rgba(100,116,139,.2)}
+.hint{font-size:.76rem;color:var(--muted);line-height:1.5;margin-top:7px}
+.info-box{display:flex;gap:10px;background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:11px 14px;font-size:.82rem;line-height:1.5;color:#94afd4;margin-bottom:14px}
+.err-box{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;font-size:.82rem;color:#fca5a5;margin-top:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
 </style>
 </head>
 <body>
 <div class="container">
 
-  <div class="header">
-    <h1>Alpha Upload Prompt Builder</h1>
-    <p>Fill in your job details — click <strong>Generate Prompt</strong> — paste into Claude with your files attached.</p>
+<div class="header">
+  <h1>Alpha Upload Tool</h1>
+  <p>Upload packing lists &mdash; review extracted data &mdash; download populated template.</p>
+</div>
+
+<div class="card">
+  <div class="card-title"><span class="step">1</span> Alpha upload template <span class="badge b-blue" style="margin-left:4px">Optional</span></div>
+  <div class="info-box">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Upload your existing Alpha template to preserve its exact column layout and sheet structure. If skipped, a standard format is used.
   </div>
-
-  <div class="card">
-    <div class="card-title"><span class="step">1</span> Output file name <span class="badge">Optional</span></div>
-    <label>Output file name (leave blank for auto-generated)</label>
-    <input type="text" id="output-name" placeholder="e.g. Alpha_Upload_PK43_20260527.xlsx">
+  <div class="drop-zone" id="tpl-drop" onclick="document.getElementById('tpl-input').click()">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <p id="tpl-label">Drop Alpha template (.xlsx) here or click to browse</p>
   </div>
+  <input type="file" id="tpl-input" accept=".xlsx,.xls" style="display:none">
+</div>
 
-  <div class="card">
-    <div class="card-title"><span class="step">2</span> Documents to attach</div>
-
-    <div class="attach-hint">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
-      </svg>
-      <span>Attach each Excel or PDF file to the Claude message. Enter the filename here exactly as attached so Claude can match them. Claude will auto-detect the document type — add any special instructions in the Notes column.</span>
+<div class="card">
+  <div class="card-title"><span class="step">2</span> Packing list files</div>
+  <div class="drop-zone" id="src-drop" onclick="document.getElementById('src-input').click()">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+    <p>Drop Excel or PDF packing lists here, or click to browse</p>
+    <p class="sub">Multiple files supported &nbsp;&bull;&nbsp; .xlsx .xls .pdf</p>
+  </div>
+  <input type="file" id="src-input" accept=".xlsx,.xls,.pdf" multiple style="display:none">
+  <div id="docs-wrap" style="display:none;margin-top:14px">
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:28%">File</th><th style="width:9%">Type</th>
+          <th style="width:16%">Purchase Order</th><th style="width:16%">Pallet Prefix</th>
+          <th style="width:27%">Notes</th><th style="width:30px"></th>
+        </tr></thead>
+        <tbody id="docs-tbody"></tbody>
+      </table>
     </div>
+  </div>
+</div>
 
-    <table class="doc-table">
-      <thead>
-        <tr>
-          <th style="width:28%">File name (as attached)</th>
-          <th style="width:20%">Purchase Order</th>
-          <th style="width:18%">Pallet prefix</th>
-          <th style="width:30%">Notes</th>
-          <th style="width:34px"></th>
-        </tr>
-      </thead>
-      <tbody id="doc-rows"></tbody>
+<button class="btn-main" id="process-btn" onclick="processAll()" style="display:none">
+  Extract &amp; Preview →
+</button>
+
+<div id="preview-card" style="display:none" class="card">
+  <div class="card-title">
+    <span class="step">3</span> Review &amp; edit
+    <span id="row-badge" class="badge b-green" style="margin-left:4px"></span>
+  </div>
+  <p class="hint" style="margin-bottom:10px">Click any cell to edit. Delete rows with ×. Use + Add row for anything that couldn't be extracted.</p>
+  <div id="parse-errors"></div>
+  <div class="tbl-scroll">
+    <table id="preview-tbl">
+      <thead><tr>
+        <th>Tag Number</th><th>Brief Description</th><th>Qty</th>
+        <th>Weight (kg)</th><th>Length (m)</th><th>Width (m)</th><th>Height (m)</th>
+        <th>Pallet Number</th><th>Purchase Order</th><th></th>
+      </tr></thead>
+      <tbody id="preview-tbody"></tbody>
     </table>
-    <button class="btn-add" onclick="addDocRow()">+ Add document</button>
-    <p class="hint">Notes examples: “use Product Type as description” · “Bay 10 Row 3” · “weight only, no dimensions” · “tag numbers are in column F”</p>
   </div>
+  <button class="btn-add" onclick="addRow()">+ Add row</button>
+</div>
 
-  <div class="card">
-    <div class="card-title"><span class="step">3</span> Supplemental information <span class="badge">Optional</span></div>
-    <label>Extra context, overrides, or corrections for this run</label>
-    <textarea id="supplemental" placeholder="Examples:
-• Crate 5 in document 2 has no weight listed — use 120 kg
-• Tag EB-400 appears twice but both are the same item — do not add suffixes
-• PO for document 3 should be PK-43 (with hyphen), not PK43
-• For ITEM-04/05/06 rows, use the Description as the article/tag number"></textarea>
-  </div>
-
-  <button class="btn-generate" onclick="generatePrompt()">Generate Prompt →</button>
-
-  <div id="output-section" class="card">
-    <div class="output-header">
-      <h3>Copy and paste into Claude — attach your files first</h3>
-      <button class="btn-copy" id="copy-btn" onclick="copyPrompt()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        Copy
-      </button>
-    </div>
-    <div id="output-box"></div>
-  </div>
+<div id="dl-card" style="display:none" class="card">
+  <div class="card-title"><span class="step">4</span> Download</div>
+  <label style="font-size:.76rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Output file name</label>
+  <input type="text" id="out-name" placeholder="Alpha_Upload_YYYYMMDD.xlsx" style="margin-bottom:14px">
+  <button class="btn-main" style="margin-bottom:0" onclick="downloadOutput()">Download Excel</button>
+</div>
 
 </div>
 <script>
-  let rowCount = 0;
+const S = { tplBuf: null, tplWb: null, docs: [], rows: [] };
+let uid = 1;
 
-  function addDocRow(file='', po='', prefix='', notes='') {
-    rowCount++;
-    const id = rowCount;
-    const tbody = document.getElementById('doc-rows');
-    const tr = document.createElement('tr');
-    tr.className = 'doc-row';
-    tr.id = `row-${id}`;
-    tr.innerHTML = `
-      <td><input type="text" placeholder="BrayValves_PK43.xlsx" value="${esc(file)}" data-field="file"></td>
-      <td><input type="text" placeholder="e.g. PK43A" value="${esc(po)}" data-field="po"></td>
-      <td><input type="text" placeholder="e.g. PK43A" value="${esc(prefix)}" data-field="prefix"></td>
-      <td><input type="text" placeholder="optional notes" value="${esc(notes)}" data-field="notes"></td>
-      <td class="del-col"><button class="btn-del" onclick="delRow(${id})" title="Remove">×</button></td>
-    `;
-    tbody.appendChild(tr);
+function wire(dropId, inputId, cb) {
+  const dz = document.getElementById(dropId);
+  const inp = document.getElementById(inputId);
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); cb(e.dataTransfer.files); });
+  inp.addEventListener('change', () => { cb(inp.files); inp.value = ''; });
+}
+
+wire('tpl-drop', 'tpl-input', files => {
+  const f = files[0]; if (!f) return;
+  f.arrayBuffer().then(buf => {
+    S.tplBuf = buf;
+    S.tplWb = XLSX.read(buf, { type: 'array' });
+    document.getElementById('tpl-drop').classList.add('filled');
+    document.getElementById('tpl-label').textContent = '✓ ' + f.name;
+  }).catch(() => alert('Could not read template file.'));
+});
+
+wire('src-drop', 'src-input', files => { Array.from(files).forEach(addDoc); });
+
+function addDoc(file) {
+  const id = uid++;
+  const isPdf = file.name.toLowerCase().endsWith('.pdf');
+  const doc = { id, file, name: file.name, isPdf, po: '', prefix: '', notes: '', rows: [], status: 'pending', error: null };
+  S.docs.push(doc);
+  const tr = document.createElement('tr');
+  tr.id = 'dr-' + id;
+  tr.innerHTML = `<td title="${esc(file.name)}" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)}</td><td><span class="badge ${isPdf?'b-orange':'b-blue'}">${isPdf?'PDF':'EXCEL'}</span></td><td><input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'po',this.value)"></td><td><input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'prefix',this.value)"></td><td><input type="text" placeholder="e.g. Bay 10 Row 3" oninput="setDoc(${id},'notes',this.value)"></td><td><button class="btn-del" onclick="removeDoc(${id})">×</button></td>`;
+  document.getElementById('docs-tbody').appendChild(tr);
+  document.getElementById('docs-wrap').style.display = 'block';
+  document.getElementById('process-btn').style.display = 'block';
+}
+
+function setDoc(id, k, v) { const d = S.docs.find(x => x.id === id); if (d) d[k] = v.trim(); }
+
+function removeDoc(id) {
+  S.docs = S.docs.filter(d => d.id !== id);
+  const tr = document.getElementById('dr-' + id); if (tr) tr.remove();
+  if (!S.docs.length) { document.getElementById('docs-wrap').style.display='none'; document.getElementById('process-btn').style.display='none'; }
+}
+
+const KW = {
+  tag:   ['tag no','tag number','tag#','tag'],
+  desc:  ['brief description','item description','description','desc'],
+  qty:   ['quantity','qty','nos.','nos','no. of items'],
+  wt:    ['gross weight','g.w.','gw','weight'],
+  len:   ['length','l(mm)','l (mm)','l(m)','dim l','l(cm)','packed l'],
+  wid:   ['width','w(mm)','w (mm)','w(m)','dim w','w(cm)','packed w'],
+  hgt:   ['height','h(mm)','h (mm)','h(m)','dim h','h(cm)','packed h'],
+  crate: ['crate no','crate number','crate','pallet no','pallet'],
+  bay:   ['bay no','bay'],
+  row:   ['storage row','row no','row'],
+};
+
+function kwMatch(cell, list) { return list.some(k => String(cell??'').toLowerCase().trim().includes(k)); }
+
+function findHeader(rows) {
+  for (let i = 0; i < Math.min(rows.length, 50); i++) {
+    if (rows[i].some(c => kwMatch(c, KW.tag)) && rows[i].some(c => kwMatch(c, KW.desc))) return i;
   }
+  return -1;
+}
 
-  function esc(s) { return s.replace(/"/g, '&quot;'); }
+function colMap(hdr) {
+  const m = {};
+  hdr.forEach((c, i) => { for (const [k,list] of Object.entries(KW)) { if (m[k]===undefined && kwMatch(c,list)) m[k]=i; } });
+  return m;
+}
 
-  function delRow(id) {
-    const el = document.getElementById(`row-${id}`);
-    if (el) el.remove();
-  }
+function unit(cell) {
+  const s = String(cell??'').toLowerCase();
+  if (s.includes('(mm)')||s.endsWith('mm')) return 'mm';
+  if (s.includes('(cm)')||s.endsWith('cm')) return 'cm';
+  return null;
+}
 
-  function getDocRows() {
-    return Array.from(document.querySelectorAll('.doc-row')).map(tr => ({
-      file:   tr.querySelector('[data-field="file"]').value.trim(),
-      po:     tr.querySelector('[data-field="po"]').value.trim(),
-      prefix: tr.querySelector('[data-field="prefix"]').value.trim(),
-      notes:  tr.querySelector('[data-field="notes"]').value.trim(),
-    })).filter(r => r.file || r.po);
-  }
+function toM(val, u) {
+  const n = parseFloat(String(val).replace(/,/g,'.').replace(/[^0-9.]/g,''));
+  if (isNaN(n)||n===0) return '';
+  if (u==='mm') return +((n/1000).toFixed(4));
+  if (u==='cm') return +((n/100).toFixed(4));
+  return n>20 ? +((n/1000).toFixed(4)) : +(n.toFixed(4));
+}
 
-  function generatePrompt() {
-    const docs       = getDocRows();
-    const outputName = document.getElementById('output-name').value.trim();
-    const supplemental = document.getElementById('supplemental').value.trim();
-    const today      = new Date().toISOString().slice(0,10).replace(/-/g,'');
-    const finalName  = outputName || `Alpha_Upload_${today}.xlsx`;
+function num(v) {
+  if (v===''||v==null) return '';
+  const n = parseFloat(String(v).replace(/,/g,'.').replace(/[^0-9.]/g,''));
+  return isNaN(n) ? '' : n;
+}
 
-    let docBlock = '';
-    if (docs.length === 0) {
-      docBlock = '  (No documents listed — please identify the attached files in Supplemental)\n';
-    } else {
-      docs.forEach((d, i) => {
-        docBlock += `  Document ${i+1}:\n`;
-        if (d.file)   docBlock += `    Attached file:  ${d.file}\n`;
-        if (d.po)     docBlock += `    Purchase Order: ${d.po}\n`;
-        if (d.prefix) docBlock += `    Pallet prefix:  ${d.prefix}\n`;
-        if (d.notes)  docBlock += `    Notes:          ${d.notes}\n`;
-        docBlock += '\n';
-      });
+function parseExcel(buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+  const hi = findHeader(raw);
+  if (hi<0) return { rows:[], warn:'Could not detect header row — check the file has TAG No and Description columns.' };
+  const hdr = raw[hi];
+  const cm = colMap(hdr);
+  if (cm.tag===undefined) return { rows:[], warn:'No TAG column found.' };
+  const uL=unit(hdr[cm.len]), uW=unit(hdr[cm.wid]), uH=unit(hdr[cm.hgt]);
+  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
+  const out = [];
+  for (let i=hi+1; i<raw.length; i++) {
+    const r=raw[i];
+    const tag  = String(r[cm.tag]  ??'').trim();
+    const crate= cm.crate!==undefined ? String(r[cm.crate]??'').trim() : '';
+    const wt   = cm.wt   !==undefined ? r[cm.wt]   : '';
+    const lv   = cm.len  !==undefined ? r[cm.len]  : '';
+    const wv   = cm.wid  !==undefined ? r[cm.wid]  : '';
+    const hv   = cm.hgt  !==undefined ? r[cm.hgt]  : '';
+    const bay  = cm.bay  !==undefined ? String(r[cm.bay]??'').trim() : '';
+    const row  = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
+    if (!tag && crate && (wt||lv||wv||hv)) {
+      cr={num:crate, wt:num(wt)||cr.wt, len:lv||cr.len, wid:wv||cr.wid, hgt:hv||cr.hgt, bay:bay||cr.bay, row:row||cr.row};
+      continue;
     }
-
-    const prompt =
-`I need you to populate an Alpha upload template (Excel, multi-sheet: Data / Supplier / Blue Water structure) using the files I have attached to this message.
-
----
-DOCUMENTS
----
-${docBlock}
----
-DOCUMENT TYPE — AUTO-DETECT
----
-Examine each attached file and determine its type. Apply the appropriate rules below.
-If you are unsure about the structure of a file, ask before proceeding — do not guess at data.
-
-  Semi-structured Excel packing list (e.g. Bray-style):
-    • The real header row may sit mid-sheet — scan for it (look for TAG No, Description, Gross Weight, Crate).
-    • Crate-level weight and dimensions appear once per crate block; assign them to every tag line in that crate.
-    • Skip any row that has no TAG No value.
-
-  PDF packing list:
-    • Extract floor-loaded equipment and crate-based spares separately.
-    • For commissioning spares, use one row per article (not a summary row).
-    • Where a spare line has no explicit tag, use the item description as the tag/article number.
-
-  Invoice-style document (e.g. O-rings, small parts):
-    • Keep weight. Leave Length, Width, Height blank — do not enter zero.
-    • Use the PO name exactly as given in the document list above.
-
-  If the document type is something else, describe what you see and ask how to handle it.
-
----
-COLUMN MAPPING
----
-  TAG No            → Tag number       Skip row entirely if blank.
-  Description       → Brief description  Use as-is unless Notes say otherwise.
-  Quantity          → Quantity         Default to 1 if blank but tag is present.
-  Gross Weight      → Weight           Crate-level value, repeated per tag line.
-  Packed dimensions → Length / Width / Height
-                      Convert to METRES (mm ÷ 1000, cm ÷ 100).
-                      Repeat crate-level dimensions for every tag line in that crate.
-                      Leave blank (not zero) if the item type has no dimensions.
-
----
-PALLET NUMBER FORMAT
----
-  Default (no Bay/Row data):
-    [Prefix]-Crate no.[#]   e.g. PK43A-Crate no.1
-
-  When Bay and Row information is available (from the source file or the Notes above):
-    [Prefix] Bay [#] Row [#] Crate [#]   e.g. PK43A Bay 10 Row 3 Crate 1
-
-  Each document must use its own unique prefix — never repeat a pallet number across documents.
-
----
-TAG NUMBER UNIQUENESS
----
-  The target system (Ongoing) creates one item per tag number.
-  If the same tag number appears on more than one line, make each unique with a suffix:
-    TAG → TAG-1, TAG-2, TAG-3 …
-
----
-FORMATTING
----
-  • Decimal separator: full stop (.) — Australian English. Never a comma.
-  • Numeric cells: weight, dimensions, quantity must be true Excel numbers, not text.
-  • Dimensions: always in METRES.
-  • Sheet structure: preserve the original Alpha upload template layout. Do NOT create a flat sheet.
-
----
-BEFORE GENERATING THE FILE — CONFIRM
----
-  1. How many tag lines were extracted from each document.
-  2. Any rows skipped (no tag number) and any quantities defaulted to 1.
-  3. Any tag numbers that needed uniqueness suffixes.
-  4. Anything you could not determine — ask rather than assume.
-
-  Do NOT infer regulated fields (HS codes, declared value, shipper of record). Flag and ask.
-
----
-OUTPUT
----
-  Name the workbook: ${finalName}
-${supplemental ? `\n---\nSUPPLEMENTAL / OVERRIDES\n---\n${supplemental}\n` : ''}`;
-
-    document.getElementById('output-box').textContent = prompt;
-    const sec = document.getElementById('output-section');
-    sec.style.display = 'block';
-    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const btn = document.getElementById('copy-btn');
-    btn.classList.remove('copied');
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+    if (crate && crate!==cr.num) {
+      cr.num=crate;
+      if(wt) cr.wt=num(wt); if(lv) cr.len=lv; if(wv) cr.wid=wv; if(hv) cr.hgt=hv;
+      if(bay) cr.bay=bay; if(row) cr.row=row;
+    }
+    if (!tag) continue;
+    out.push({ tag, desc:String(r[cm.desc]??'').trim(), qty:num(r[cm.qty])||1,
+      wt:num(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL),
+      wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
+      crate:cr.num, bay:cr.bay, row:cr.row });
   }
+  return { rows:out, warn:out.length===0?'No tagged rows found.':null };
+}
 
-  function copyPrompt() {
-    navigator.clipboard.writeText(document.getElementById('output-box').textContent).then(() => {
-      const btn = document.getElementById('copy-btn');
-      btn.classList.add('copied');
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 12 4 9"/></svg> Copied!`;
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
-      }, 2500);
-    });
+function parseNotes(notes) {
+  const r={bay:'',row:'',noDims:false};
+  const bm=notes.match(/bay\s*(\d+)/i), rm=notes.match(/row\s*(\d+)/i);
+  if(bm) r.bay=bm[1]; if(rm) r.row=rm[1];
+  if(/no dim|weight only/i.test(notes)) r.noDims=true;
+  return r;
+}
+
+function palletNum(prefix, bay, row, crate) {
+  prefix=(prefix||'PK').trim();
+  const c=String(crate||'').trim(), b=String(bay||'').trim(), rw=String(row||'').trim();
+  if(b&&rw&&c) return `${prefix} Bay ${b} Row ${rw} Crate ${c}`;
+  if(b&&c)     return `${prefix} Bay ${b} Crate ${c}`;
+  if(c)        return `${prefix}-Crate no.${c}`;
+  return prefix;
+}
+
+function uniqueTags(rows) {
+  const cnt={}; rows.forEach(r=>{cnt[r.tag]=(cnt[r.tag]||0)+1;});
+  const idx={};
+  return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
+}
+
+async function processAll() {
+  const btn=document.getElementById('process-btn');
+  btn.innerHTML='<span class="spinner"></span> Processing…'; btn.disabled=true;
+  let all=[]; const errors=[];
+  for (const doc of S.docs) {
+    if (doc.isPdf) { errors.push(`<b>${esc(doc.name)}</b>: PDF auto-parsing not supported. Add rows manually with + Add row.`); continue; }
+    try {
+      const buf=await doc.file.arrayBuffer();
+      const {rows,warn}=parseExcel(buf);
+      if(warn) errors.push(`<b>${esc(doc.name)}</b>: ${esc(warn)}`);
+      const ni=parseNotes(doc.notes);
+      all=all.concat(rows.map(r=>({ id:uid++, tag:r.tag, desc:r.desc, qty:r.qty,
+        wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
+        pallet:palletNum(doc.prefix,r.bay||ni.bay,r.row||ni.row,r.crate), po:doc.po })));
+    } catch(e) { errors.push(`<b>${esc(doc.name)}</b>: ${esc(e.message)}`); }
   }
+  all=uniqueTags(all); S.rows=all;
+  document.getElementById('parse-errors').innerHTML=errors.length?`<div class="err-box">${errors.join('<br>')}</div>`:'';
+  renderPreview();
+  btn.innerHTML='Extract &amp; Preview →'; btn.disabled=false;
+  document.getElementById('preview-card').style.display='block';
+  document.getElementById('dl-card').style.display='block';
+  document.getElementById('preview-card').scrollIntoView({behavior:'smooth',block:'start'});
+  if(!document.getElementById('out-name').value)
+    document.getElementById('out-name').value='Alpha_Upload_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx';
+}
 
-  addDocRow();
-  addDocRow();
-  addDocRow();
+function renderPreview() {
+  const tbody=document.getElementById('preview-tbody');
+  tbody.innerHTML='';
+  S.rows.forEach(r=>tbody.appendChild(mkRow(r)));
+  document.getElementById('row-badge').textContent=S.rows.length+' rows';
+}
+
+function mkRow(r) {
+  const tr=document.createElement('tr'); tr.id='pr-'+r.id;
+  const fields=['tag','desc','qty','wt','len','wid','hgt','pallet','po'];
+  tr.innerHTML=fields.map(f=>`<td><input type="text" value="${esc(String(r[f]??''))}" oninput="setRow(${r.id},'${f}',this.value)"></td>`).join('')+`<td><button class="btn-del" onclick="delRow(${r.id})">×</button></td>`;
+  return tr;
+}
+
+function setRow(id,k,v){const r=S.rows.find(x=>x.id===id);if(r)r[k]=v;}
+function delRow(id){S.rows=S.rows.filter(r=>r.id!==id);const t=document.getElementById('pr-'+id);if(t)t.remove();document.getElementById('row-badge').textContent=S.rows.length+' rows';}
+function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};S.rows.push(r);document.getElementById('preview-tbody').appendChild(mkRow(r));document.getElementById('row-badge').textContent=S.rows.length+' rows';document.getElementById('preview-card').style.display='block';document.getElementById('dl-card').style.display='block';}
+
+function downloadOutput() {
+  if(!S.rows.length){alert('No rows to export.');return;}
+  const fname=document.getElementById('out-name').value.trim()||'Alpha_Upload.xlsx';
+  let wb;
+  if(S.tplBuf){
+    wb=XLSX.read(S.tplBuf,{type:'array'});
+    const sn=wb.SheetNames.find(n=>/data/i.test(n))||wb.SheetNames[0];
+    const ws=wb.Sheets[sn];
+    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    const hi=findHeader(raw);
+    if(hi>=0){
+      const hdr=raw[hi], cm=colMap(hdr);
+      let ins=hi+1;
+      for(let i=hi+1;i<raw.length;i++){if(raw[i].some(c=>String(c).trim()!==''))ins=i+1;else break;}
+      const range=XLSX.utils.decode_range(ws['!ref']||'A1');
+      const poCol=hdr.findIndex(c=>/purchase\s*order|p\.?o\b/i.test(String(c)));
+      S.rows.forEach((r,i)=>{
+        const ri=ins+i;
+        const set=(col,val,t)=>{if(col!==undefined&&col>=0)ws[XLSX.utils.encode_cell({r:ri,c:col})]={v:val,t};};
+        set(cm.tag,r.tag,'s'); set(cm.desc,r.desc,'s');
+        if(r.qty!=='')set(cm.qty,Number(r.qty),'n');
+        if(r.wt!=='')set(cm.wt,Number(r.wt),'n');
+        if(r.len!=='')set(cm.len,Number(r.len),'n');
+        if(r.wid!=='')set(cm.wid,Number(r.wid),'n');
+        if(r.hgt!=='')set(cm.hgt,Number(r.hgt),'n');
+        if(cm.crate!==undefined)set(cm.crate,r.pallet,'s');
+        if(poCol>=0)ws[XLSX.utils.encode_cell({r:ri,c:poCol})]={v:r.po,t:'s'};
+        range.e.r=Math.max(range.e.r,ri);
+      });
+      ws['!ref']=XLSX.utils.encode_range(range);
+    }
+  } else {
+    wb=XLSX.utils.book_new();
+    const hdrs=['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
+    const data=[hdrs,...S.rows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:22},{wch:38},{wch:9},{wch:12},{wch:11},{wch:11},{wch:11},{wch:32},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,'Data');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([[]]),'Supplier');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([[]]),'Blue Water');
+  }
+  const arr=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const blob=new Blob([arr],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=fname; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 </script>
 </body>
 </html>

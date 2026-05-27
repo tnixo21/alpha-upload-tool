@@ -185,7 +185,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 </div><!-- /container -->
 
 <script>
-// ── TEMPLATE STORAGE ─────────────────────────────────────────────────
+// ── TEMPLATE STORAGE ───────────────────────────────────────
 const TPL_KEY = 'alpha_tpl_v1';
 const TPL_NAME_KEY = 'alpha_tpl_name_v1';
 
@@ -217,7 +217,7 @@ function resetTemplate() {
   startOver();
 }
 
-// ── INIT ─────────────────────────────────────────────────────
+// ── INIT ───────────────────────────────────────────────────
 (function init() {
   if (templateSaved()) {
     showMain();
@@ -243,7 +243,7 @@ function showMain() {
   document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
 }
 
-// ── DROP ZONES ─────────────────────────────────────────────────
+// ── DROP ZONES ─────────────────────────────────────────────
 function wireDZ(dzId, inputId, cb) {
   const dz = document.getElementById(dzId);
   const inp = document.getElementById(inputId);
@@ -253,7 +253,7 @@ function wireDZ(dzId, inputId, cb) {
   inp.addEventListener('change', () => { cb(inp.files); inp.value = ''; });
 }
 
-// ── FILE LIST ──────────────────────────────────────────────────
+// ── FILE LIST ──────────────────────────────────────────────
 let uid = 1;
 const docs = [];
 
@@ -302,7 +302,7 @@ function removeFile(id) {
   if (!docs.length) document.getElementById('extract-btn').style.display = 'none';
 }
 
-// ── EXCEL PARSING ──────────────────────────────────────────────
+// ── EXCEL PARSING ──────────────────────────────────────────
 const KW = {
   tag:   ['tag no','tag number','tag#','tag',
           'serial no','serial number',
@@ -367,7 +367,7 @@ function parseXL(buf) {
   return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
 }
 
-// ── PDF PARSING ──────────────────────────────────────────────
+// ── PDF PARSING ────────────────────────────────────────────
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -579,7 +579,7 @@ function dedupTags(rows) {
   return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
 }
 
-// ── EXTRACT ────────────────────────────────────────────────────
+// ── EXTRACT ────────────────────────────────────────────────
 let previewRows = [];
 
 async function runExtract() {
@@ -621,7 +621,7 @@ async function runExtract() {
   document.getElementById('review-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── PREVIEW TABLE ────────────────────────────────────────────────
+// ── PREVIEW TABLE ──────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById('preview-body');
   tbody.innerHTML = '';
@@ -641,7 +641,7 @@ function upd(id,k,v){const r=previewRows.find(x=>x.id===id);if(r)r[k]=v;}
 function delR(id){previewRows=previewRows.filter(r=>r.id!==id);const t=document.getElementById('tr-'+id);if(t)t.remove();document.getElementById('row-count').textContent=previewRows.length+' rows';}
 function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};previewRows.push(r);document.getElementById('preview-body').appendChild(mkTr(r));document.getElementById('row-count').textContent=previewRows.length+' rows';document.getElementById('review-card').style.display='block';document.getElementById('gen-card').style.display='block';}
 
-// ── GENERATE ─────────────────────────────────────────────────────
+// ── GENERATE ───────────────────────────────────────────────
 function generate() {
   if (!previewRows.length) { alert('No rows to export.'); return; }
   const fname = document.getElementById('out-name').value.trim() || 'Alpha_Upload.xlsx';
@@ -650,18 +650,18 @@ function generate() {
 
   if (tplBuf) {
     wb = XLSX.read(tplBuf, { type: 'array' });
-    const sn = wb.SheetNames.find(n => /data/i.test(n)) || wb.SheetNames[0];
+    // Target Supplier sheet — Data sheet auto-populates from it via formulas
+    const sn = wb.SheetNames.find(n => /supplier/i.test(n)) || wb.SheetNames[0];
     const ws = wb.Sheets[sn];
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     const hi = findHdr(raw);
     if (hi >= 0) {
       const hdr = raw[hi], cm = buildCM(hdr);
-      // Find first empty row after the header to start inserting
+      // Find insertion point after any existing data rows
       let ins = hi + 1;
-      for (let i = hi+1; i < raw.length; i++) { if (raw[i].some(c => String(c).trim())) ins = i+1; else break; }
-      const poCol = hdr.findIndex(c => /purchase\s*order|p\.?o\b/i.test(String(c)));
-      // Build rows as arrays aligned to the template's column order,
-      // then use sheet_add_aoa which correctly extends !ref in all directions.
+      for (let i = hi + 1; i < raw.length; i++) { if (raw[i].some(c => String(c).trim())) ins = i + 1; else break; }
+      const poCol = hdr.findIndex(c => /purchase\s*order/i.test(String(c)));
+      // Build rows aligned to template column order; sheet_add_aoa extends !ref correctly
       const aoa = previewRows.map(r => {
         const row = new Array(hdr.length).fill('');
         if (cm.tag  !== undefined) row[cm.tag]  = r.tag;
@@ -677,7 +677,7 @@ function generate() {
       });
       XLSX.utils.sheet_add_aoa(ws, aoa, { origin: { r: ins, c: 0 } });
     } else {
-      // Template header not recognised — append data as a new sheet so nothing is lost
+      // Supplier sheet header not recognised — append data as new sheet so nothing is lost
       const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
       const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Upload Data');
@@ -701,7 +701,7 @@ function generate() {
   URL.revokeObjectURL(url);
 }
 
-// ── HELPERS ──────────────────────────────────────────────────────
+// ── HELPERS ────────────────────────────────────────────────
 function startOver() {
   docs.length = 0;
   previewRows = [];

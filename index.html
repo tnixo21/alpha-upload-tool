@@ -384,6 +384,201 @@ function parseXL(buf) {
   return { rows:out, warn:out.length===0?'No data rows found — check the file has a recognisable header row.':null };
 }
 
+// ── FALLBACK: grouped-crate packing list (CIPL/Bray style) ─────────────────
+// Handles docs where tags are comma-listed per crate row rather than one row per item
+function tryParseGroupedCrate(allItems) {
+  const allCrateItems = allItems
+    .filter(i => /^Crate\s+\d+$/i.test(i.text) && i.x < 120)
+    .sort((a, b) => a.y - b.y);
+  if (!allCrateItems.length) return null;
+  if (!allItems.some(i => extractTagFromDesc(i.text))) return null;
+
+  // Deduplicate: only use the first occurrence of each crate label (ignore repeat pages)
+  const seen = new Set();
+  const crateItems = allCrateItems.filter(c => {
+    const k = c.text.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+
+  // Cap content to the region of the first page (don't let last crate absorb page 2).
+  // Estimate end of first page as last crate label y + 2× the average inter-crate gap.
+  const avgGap = crateItems.length > 1
+    ? (crateItems[crateItems.length-1].y - crateItems[0].y) / (crateItems.length - 1)
+    : 200;
+  const pageEnd = crateItems[crateItems.length-1].y + avgGap * 2;
+
+  // Biased Voronoi: assign each tag-zone item to the nearest crate, but penalise
+  // items that appear BELOW a crate's label (they likely belong to the next crate
+  // whose content starts above its label).
+  const BELOW_PENALTY = 8;
+  const nearestCrate = (itemY) => {
+    let best = crateItems[0], bestScore = Infinity;
+    for (const c of crateItems) {
+      const dist  = Math.abs(itemY - c.y);
+      const penalty = itemY > c.y ? BELOW_PENALTY : 0;
+      const score = dist + penalty;
+      if (score < bestScore) { bestScore = score; best = c; }
+    }
+    return best;
+  };
+
+  // Assign all tag-zone items to their crate
+  const NOISE_DESC = /^(packing\s+list|commercial\s+invoice|delivery\s+docket|page\s+\d)/i;
+
+  // Detect approximate description x from across whole doc (non-code, non-noise text at x>200)
+  const allDescCands = allItems.filter(i => i.x > 200 && i.text.length > 6 &&
+    !NOISE_DESC.test(i.text) && !/^\d{4}\.\d{2}/.test(i.text) &&
+    !/^[A-Z0-9]{2,5}-[A-Z]{1,4}-\d/.test(i.text) && i.y < pageEnd);
+  const descX = allDescCands.length ? Math.min(...allDescCands.map(i => i.x)) : 300;
+
+  const crateTagMap = new Map(crateItems.map(c => [c, []]));
+  for (const item of allItems) {
+    if (item.y >= pageEnd) continue;
+    if (item.x <= 80 || item.x >= descX) continue;
+    crateTagMap.get(nearestCrate(item.y)).push(item);
+  }
+
+  const rows = [];
+  for (const crate of crateItems) {
+    const tagZone = crateTagMap.get(crate);
+    const rawTagText = tagZone.sort((a,b) => a.y !== b.y ? a.y-b.y : a.x-b.x)
+                              .map(i => i.text).join(' ').replace(/-\s+/g,'-').replace(/\s+-/g,'-');
+    const tags = [];
+    for (const tok of rawTagText.split(',')) {
+      for (const word of tok.trim().split(/\s+/)) {
+        const t = extractTagFromDesc(word);
+        if (t && !tags.includes(t)) tags.push(t);
+      }
+    }
+    if (!tags.length) continue;
+
+    // Description: nearest non-code, non-noise text at x≈descX near the crate label
+    const nearCrateY = allItems.filter(i => Math.abs(i.y - crate.y) < 20 && i.y < pageEnd);
+    const descItems = nearCrateY.filter(i => i.x >= descX - 20 && !NOISE_DESC.test(i.text) &&
+      !/^\d{4}\.\d{2}/.test(i.text) && i.text.length > 4);
+    const desc = descItems.length ? descItems.sort((a,b) => Math.abs(a.x-descX)-Math.abs(b.x-descX))[0].text : '';
+
+    // Dimensions: 3 numbers at x 60-120 near crate label y
+    const dimNums = nearCrateY.filter(i => i.x > 60 && i.x < 125 && /^\d+$/.test(i.text)).sort((a,b) => a.x-b.x);
+    const lVal = dimNums[0] ? toM(dimNums[0].text,'mm') : '';
+    const wVal = dimNums[1] ? toM(dimNums[1].text,'mm') : '';
+    const hVal = dimNums[2] ? toM(dimNums[2].text,'mm') : '';
+
+    // Net weight: x 460-510 near crate label
+    const wtItem = nearCrateY.find(i => i.x > 460 && i.x < 515 && /^\d+$/.test(i.text));
+    const wt = wtItem ? parseFloat(wtItem.text) : '';
+
+    const crateNum = crate.text.replace(/^Crate\s+/i,'');
+    for (const tag of tags) {
+      rows.push({ tag, desc, qty: 1, wt, len: lVal, wid: wVal, hgt: hVal,
+                  crate: crateNum, bay:'', row:'', detectedPO:'' });
+    }
+  }
+  return rows.length ? rows : null;
+}
+
+// ── FALLBACK: delivery docket (Kiosk / despatch note) ───────────────────────
+function tryParseDeliveryDocket(allItems) {
+  if (!allItems.some(i => /kiosk/i.test(i.text))) return null;
+  const kioskIdx = allItems.findIndex(i => /^KIOSK\s*#?$/i.test(i.text));
+  if (kioskIdx < 0) return null;
+
+  const ki = allItems[kioskIdx];
+  const numParts = allItems
+    .filter(i => i.x > ki.x && Math.abs(i.y - ki.y) < 6 && /^\d+$/.test(i.text))
+    .sort((a,b) => a.x-b.x);
+  const tag = 'KIOSK #' + numParts.map(i => i.text).join('');
+
+  // Description from "Type of Package" label
+  const typeIdx = allItems.findIndex(i => /type\s+of\s+package/i.test(i.text));
+  let desc = tag;
+  if (typeIdx >= 0) {
+    const ty = allItems[typeIdx].y;
+    const d  = allItems.find(i => i.x > allItems[typeIdx].x + 20 && Math.abs(i.y - ty) < 6);
+    if (d) desc = d.text;
+  }
+
+  // Weight — join all numeric fragments on same y row (e.g. "1" + "5" → "15")
+  const wtIdx = allItems.findIndex(i => /^Weight:?$/i.test(i.text));
+  let wt = '';
+  if (wtIdx >= 0) {
+    const wy = allItems[wtIdx].y;
+    const wtNums = allItems
+      .filter(i => i.x > allItems[wtIdx].x && Math.abs(i.y - wy) < 6 && /^[\d,.]+$/.test(i.text))
+      .sort((a,b) => a.x-b.x).map(i => i.text).join('');
+    if (wtNums) wt = parseFloat(wtNums.replace(/,/g,''));
+  }
+
+  // Dimensions via Length/Width/Height headers
+  const lenHdr = allItems.find(i => /^length$/i.test(i.text));
+  const widHdr = allItems.find(i => /^width$/i.test(i.text));
+  const hgtHdr = allItems.find(i => /^height$/i.test(i.text));
+  let len='', wid='', hgt='';
+  if (lenHdr && widHdr && hgtHdr) {
+    const hdrY = lenHdr.y;
+    const unitItem = allItems.find(i => i.y >= hdrY-5 && i.y <= hdrY+5 && /\(m\)/i.test(i.text));
+    const unit = unitItem ? 'm' : null;
+    const getNum = hdrX => allItems
+      .filter(i => Math.abs(i.x-hdrX) < 40 && i.y > hdrY+3 && i.y < hdrY+40 && /^[\d.]+$/.test(i.text))
+      .sort((a,b) => a.x-b.x).map(i => i.text).join('');
+    len = getNum(lenHdr.x) ? toM(getNum(lenHdr.x), unit) : '';
+    wid = getNum(widHdr.x) ? toM(getNum(widHdr.x), unit) : '';
+    hgt = getNum(hgtHdr.x) ? toM(getNum(hgtHdr.x), unit) : '';
+  }
+
+  return [{ tag, desc, qty:1, wt, len, wid, hgt, crate:'', bay:'', row:'', detectedPO:'' }];
+}
+
+// ── FALLBACK: OCR for scanned/image PDFs (Tesseract.js) ─────────────────────
+async function tryParseWithOCR(pdf) {
+  if (!window.Tesseract) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = res; s.onerror = () => rej(new Error('Tesseract.js failed to load'));
+      document.head.appendChild(s);
+    });
+  }
+  let fullText = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp   = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    try {
+      const worker = await Tesseract.createWorker('eng');
+      const { data: { text } } = await worker.recognize(canvas);
+      await worker.terminate();
+      fullText += '\n' + text;
+    } catch(e) { /* page OCR failed */ }
+  }
+  if (!fullText.trim()) return null;
+
+  // Convert OCR text to synthetic allItems using line/word positions
+  const ocrItems = [];
+  fullText.split('\n').forEach((line, li) => {
+    line.split(/\s+/).filter(w=>w).forEach((word, wi) => {
+      ocrItems.push({ text: word, x: wi * 50, y: li * 14 });
+    });
+  });
+  // Re-run grouped-crate and delivery-docket fallbacks on OCR items
+  const gcRows = tryParseGroupedCrate(ocrItems);
+  if (gcRows && gcRows.length) return { rows: gcRows, warn: 'OCR extracted — please verify all values.' };
+  const ddRows = tryParseDeliveryDocket(ocrItems);
+  if (ddRows && ddRows.length) return { rows: ddRows, warn: 'OCR extracted — please verify all values.' };
+
+  // Last resort: pull any engineering codes directly
+  const codeRe = /\b([A-Z0-9]{2,5}-[A-Z]{1,4}-\d{3,}[A-Z0-9]*)\b/gi;
+  const tags = [...new Set([...fullText.matchAll(codeRe)].map(m => m[1]))];
+  if (!tags.length) return null;
+  return {
+    rows: tags.map(tag => ({ tag, desc:'', qty:1, wt:'', len:'', wid:'', hgt:'', crate:'', bay:'', row:'', detectedPO:'' })),
+    warn: 'OCR extracted tag codes only — descriptions and dimensions need manual entry.'
+  };
+}
+
 // ── PDF PARSING ────────────────────────────────────────────
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
@@ -407,7 +602,11 @@ async function parsePDF(buf) {
       }));
   }
 
-  if (!allItems.length) return { rows: [], warn: 'No text found in PDF.' };
+  if (!allItems.length) {
+    const ocrResult = await tryParseWithOCR(pdf);
+    if (ocrResult) return ocrResult;
+    return { rows: [], warn: 'No text found in PDF — file may be scanned/image-only. OCR found no items; add rows manually.' };
+  }
 
   allItems.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
 
@@ -428,9 +627,15 @@ async function parsePDF(buf) {
 
   const textRows = rawRows.map(row => row.map(i => i.text));
 
-  // Find header row
+  // Find header row — if none, try specialised fallback parsers before giving up
   const hi = findHdr(textRows);
-  if (hi < 0) return { rows: [], warn: 'Could not detect table header in PDF — add rows manually.' };
+  if (hi < 0) {
+    const gcRows = tryParseGroupedCrate(allItems);
+    if (gcRows && gcRows.length) return { rows: gcRows };
+    const ddRows = tryParseDeliveryDocket(allItems);
+    if (ddRows && ddRows.length) return { rows: ddRows };
+    return { rows: [], warn: 'Could not detect table header in PDF — add rows manually.' };
+  }
 
   const hdrItems = rawRows[hi];
 
@@ -615,6 +820,12 @@ async function parsePDF(buf) {
       detectedPO: cells.po ? cells.po.trim() : '' });
   }
 
+  if (!out.length) {
+    const gcRows = tryParseGroupedCrate(allItems);
+    if (gcRows && gcRows.length) return { rows: gcRows };
+    const ddRows = tryParseDeliveryDocket(allItems);
+    if (ddRows && ddRows.length) return { rows: ddRows };
+  }
   return { rows: out, warn: out.length === 0 ? 'No tagged rows found in PDF — add rows manually.' : null };
 }
 

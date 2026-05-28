@@ -335,7 +335,15 @@ const buildCM = hdr => {
   hdr.forEach((c,i) => { if (/equipment\s*(number|no)/i.test(String(c)) || /client\s*(tag|no)\b/i.test(String(c))) m.tag = i; });
   return m;
 };
-const extractTagFromDesc = desc => { const m = String(desc||'').match(/\b([A-Z0-9]{2,5}-[A-Z]{1,4}-\d{3,}[A-Z0-9]*)\b/i); return m ? m[1] : ''; };
+const extractTagFromDesc = s => {
+  s = String(s||'');
+  // Exact: "620-VE-002"
+  let m = s.match(/\b([A-Z0-9]{2,5}-[A-Z]{1,4}-\d{3,}[A-Z0-9]*)\b/i);
+  if (m) return m[1];
+  // Spaces around hyphens (PDF rendering artefact): "620 - VE - 002"
+  m = s.match(/\b([A-Z0-9]{2,5})\s*-\s*([A-Z]{1,4})\s*-\s*(\d{3,}[A-Z0-9]*)\b/i);
+  return m ? m[1]+'-'+m[2]+'-'+m[3] : '';
+};
 const unitOf = c => { const s=String(c??'').toLowerCase(); return s.includes('(mm)')||s.endsWith('mm')?'mm':s.includes('(cm)')||s.endsWith('cm')?'cm':null; };
 // Smart number parser: handles "1,100.00" (thousands+decimal) and "1.100,00" (EU format)
 const _pn = s => { s=String(s).trim(); if(s.includes(',')&&s.includes('.')) s=s.replace(/,/g,''); else s=s.replace(/,/g,'.'); return parseFloat(s.replace(/[^0-9.]/g,'')); };
@@ -562,9 +570,19 @@ async function parsePDF(buf) {
     if (/\b[WLH]:\s*[\d.]/i.test(tag)) continue;                       // dimension rows "1 W: 1.3 m x L:"
     if (/^(item|packed|dimensions?)$/i.test(tag)) continue;             // second-table bare headers
     if (/^packed\s+(dimensions?|weight|by|list)/i.test(tag)) continue;  // compound header rows
-    // Resolve tag: try extractTagFromDesc on raw tag first ("1 620-VE-002" -> "620-VE-002"),
-    // then looksLikeTag gate, then fall back to description extraction
-    let resolvedTag = extractTagFromDesc(tag) || ((tag && looksLikeTag(tag)) ? tag : '') || extractTagFromDesc(desc);
+    const full = (tag + ' ' + desc).toLowerCase();
+    if (/\bnotes\b/.test(full)) continue;            // "Shipping Notes", "Refer notes", "R efer notes"
+    if (/\baddress\b/.test(full)) continue;          // "Pick up address 6155..."
+    if (/\bopening\b/.test(full)) continue;          // "Opening hrs: 7"
+    if (/\bcontact\s+person\b/.test(full)) continue; // "Contact person Scott..."
+    if (/\bpacked\s+in\b/.test(full)) continue;      // "Item 6 packed in Crate No.10"
+    // Resolve tag: try extractTagFromDesc on raw tag, then tag+desc combined (handles code split
+    // across columns: "3 620 - VE" + "- 004 - Knockout Po" → "620-VE-004"), then looksLikeTag,
+    // then desc alone
+    let resolvedTag = extractTagFromDesc(tag)
+      || extractTagFromDesc(tag + ' ' + desc)
+      || ((tag && looksLikeTag(tag)) ? tag : '')
+      || extractTagFromDesc(desc);
     // Skip completely empty rows; skip bare-number tags with no description (summary rows)
     if (!resolvedTag && !desc) continue;
     if (/^\d+$/.test(resolvedTag) && !desc) continue;

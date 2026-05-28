@@ -587,7 +587,13 @@ async function parsePDF(buf) {
     if (!resolvedTag && !desc) continue;
     if (/^\d+$/.test(resolvedTag) && !desc) continue;
 
-    const cleanDesc = desc.replace(/^[\s\-–—]+/, '').trim();
+    let cleanDesc = desc.replace(/^[\s\-–—]+/, '').trim();
+    // Strip tag-code suffix that bled into desc when code was split across columns
+    // e.g. resolvedTag="620-VE-004", cleanDesc="004 - Knockout Pot" → "Knockout Pot"
+    const tagSuffix = resolvedTag ? resolvedTag.split('-').pop() : '';
+    if (tagSuffix && /^\d/.test(tagSuffix)) {
+      cleanDesc = cleanDesc.replace(new RegExp('^' + tagSuffix + '\\s*[\\-–—]\\s*', 'i'), '').trim();
+    }
     const cleanCrate = cr.num.replace(/\s+([a-z]{1,3})(?=\s|$)/g, (_, s) => s).trim();
     out.push({ tag: resolvedTag, desc: cleanDesc, qty: toN(cells.qty) || 1,
       wt:  toN(wt  !== '' ? wt  : cr.wt),

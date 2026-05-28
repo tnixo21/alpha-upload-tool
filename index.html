@@ -145,7 +145,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 
   <!-- STEP 2 -->
   <button class="btn-primary" id="extract-btn" onclick="runExtract()" style="display:none">
-    Preview extracted data &rarr;
+    Preview extracted data →
   </button>
 
   <!-- STEP 3 -->
@@ -185,7 +185,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 </div><!-- /container -->
 
 <script>
-// ── TEMPLATE STORAGE ──────────────────────────────────────────────────────────
+// ── TEMPLATE STORAGE ───────────────────────────────────────
 const TPL_KEY = 'alpha_tpl_v1';
 const TPL_NAME_KEY = 'alpha_tpl_name_v1';
 
@@ -217,7 +217,7 @@ function resetTemplate() {
   startOver();
 }
 
-// ── INIT ───────────────────────────────────────────────────────────
+// ── INIT ───────────────────────────────────────────────────
 (function init() {
   if (templateSaved()) {
     showMain();
@@ -243,7 +243,7 @@ function showMain() {
   document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
 }
 
-// ── DROP ZONES ──────────────────────────────────────────────────────────
+// ── DROP ZONES ─────────────────────────────────────────────
 function wireDZ(dzId, inputId, cb) {
   const dz = document.getElementById(dzId);
   const inp = document.getElementById(inputId);
@@ -253,7 +253,7 @@ function wireDZ(dzId, inputId, cb) {
   inp.addEventListener('change', () => { cb(inp.files); inp.value = ''; });
 }
 
-// ── FILE LIST ──────────────────────────────────────────────────────────
+// ── FILE LIST ──────────────────────────────────────────────
 let uid = 1;
 const docs = [];
 
@@ -286,7 +286,7 @@ function renderFile(id, name, isPdf) {
       </div>
       <div class="field-group span2">
         <label>Notes from paperwork</label>
-        <textarea placeholder="e.g. Bay 10 Row 3 &middot; weight only, no dimensions &middot; use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
+        <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
       </div>
     </div>`;
   document.getElementById('file-list').appendChild(div);
@@ -302,7 +302,7 @@ function removeFile(id) {
   if (!docs.length) document.getElementById('extract-btn').style.display = 'none';
 }
 
-// ── EXCEL PARSING ───────────────────────────────────────────────────────
+// ── EXCEL PARSING ──────────────────────────────────────────
 const KW = {
   tag:   ['tag no','tag number','tag#','tag',
           'serial no','serial number',
@@ -384,7 +384,7 @@ function parseXL(buf) {
   return { rows:out, warn:out.length===0?'No data rows found — check the file has a recognisable header row.':null };
 }
 
-// ── PDF PARSING ───────────────────────────────────────────────────────
+// ── PDF PARSING ────────────────────────────────────────────
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -587,12 +587,14 @@ async function parsePDF(buf) {
     if (!resolvedTag && !desc) continue;
     if (/^\d+$/.test(resolvedTag) && !desc) continue;
 
-    out.push({ tag: resolvedTag, desc, qty: toN(cells.qty) || 1,
+    const cleanDesc = desc.replace(/^[\s\-–—]+/, '').trim();
+    const cleanCrate = cr.num.replace(/\s+([a-z]{1,3})(?=\s|$)/g, (_, s) => s).trim();
+    out.push({ tag: resolvedTag, desc: cleanDesc, qty: toN(cells.qty) || 1,
       wt:  toN(wt  !== '' ? wt  : cr.wt),
       len: toM(lv  !== '' ? lv  : cr.len, uL),
       wid: toM(wv  !== '' ? wv  : cr.wid, uW),
       hgt: toM(hv  !== '' ? hv  : cr.hgt, uH),
-      crate: cr.num, bay: cr.bay, row: cr.row,
+      crate: cleanCrate, bay: cr.bay, row: cr.row,
       detectedPO: cells.po ? cells.po.trim() : '' });
   }
 
@@ -625,7 +627,7 @@ function dedupTags(rows) {
   return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
 }
 
-// ── EXTRACT ────────────────────────────────────────────────────────────
+// ── EXTRACT ────────────────────────────────────────────────
 let previewRows = [];
 
 async function runExtract() {
@@ -643,7 +645,7 @@ async function runExtract() {
       const ni = parseNotes(doc.notes);
       all = all.concat(rows.map(r => {
         let tag = r.tag;
-        // Apply notes tagMap: remap tags using description match
+        // Apply notes tagMap: remap bare item numbers / empty tags using description match
         if (ni.tagMap.length) {
           const dl = (r.desc || '').toLowerCase();
           const found = ni.tagMap.find(e => {
@@ -669,7 +671,7 @@ async function runExtract() {
   document.getElementById('row-count').textContent = previewRows.length + ' rows extracted';
   renderTable();
 
-  btn.innerHTML = 'Preview extracted data &rarr;';
+  btn.innerHTML = 'Preview extracted data →';
   btn.disabled = false;
 
   document.getElementById('review-card').style.display = 'block';
@@ -679,7 +681,7 @@ async function runExtract() {
   document.getElementById('review-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── PREVIEW TABLE ──────────────────────────────────────────────────────────
+// ── PREVIEW TABLE ──────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById('preview-body');
   tbody.innerHTML = '';
@@ -699,7 +701,7 @@ function upd(id,k,v){const r=previewRows.find(x=>x.id===id);if(r)r[k]=v;}
 function delR(id){previewRows=previewRows.filter(r=>r.id!==id);const t=document.getElementById('tr-'+id);if(t)t.remove();document.getElementById('row-count').textContent=previewRows.length+' rows';}
 function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:''};previewRows.push(r);document.getElementById('preview-body').appendChild(mkTr(r));document.getElementById('row-count').textContent=previewRows.length+' rows';document.getElementById('review-card').style.display='block';document.getElementById('gen-card').style.display='block';}
 
-// ── GENERATE ─────────────────────────────────────────────────────────────
+// ── GENERATE ───────────────────────────────────────────────
 function generate() {
   if (!previewRows.length) { alert('No rows to export.'); return; }
   const fname = document.getElementById('out-name').value.trim() || 'Alpha_Upload.xlsx';
@@ -759,7 +761,7 @@ function generate() {
   URL.revokeObjectURL(url);
 }
 
-// ── HELPERS ────────────────────────────────────────────────────────────
+// ── HELPERS ────────────────────────────────────────────────
 function startOver() {
   docs.length = 0;
   previewRows = [];

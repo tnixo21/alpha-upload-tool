@@ -576,6 +576,17 @@ async function parsePDF(buf) {
     if (/\bopening\b/.test(full)) continue;          // "Opening hrs: 7"
     if (/\bcontact\s+person\b/.test(full)) continue; // "Contact person Scott..."
     if (/\bpacked\s+in\b/.test(full)) continue;      // "Item 6 packed in Crate No.10"
+    // Invoice / customs document noise
+    if (/commercial\s+invoice/i.test(full)) continue;                      // "COMMERCIAL INVOICE" header
+    if (/^page\s+\d+\s+of\s+\d+$/.test(full.trim())) continue;            // "Page 1 of 4"
+    if (/^\d{4}\.\d{2}\.\d{2}/.test(desc)) continue;                      // HS tariff codes as desc "8481.80.30"
+    if (/^(BSB|Swift)\s*:/i.test(desc)) continue;                                          // bank details (any tag)
+    if (!tag && /^(Account\s+(Name|No)|Freight:|Terms\s+of|Buyer\s*\(|Our\s+Bank)/i.test(desc)) continue;
+    if (!tag && /tariff\s+code/i.test(desc)) continue;
+    if (!tag && /\bpty\.?\s*ltd\b/i.test(desc)) continue;
+    if (!tag && /\b(road|street|ave|avenue|drive|blvd|boulevard)\b/i.test(desc)) continue;
+    if (!tag && /\b[A-Z]{2,4}\s+\d{4}\b/.test(desc)) continue;          // suburb postcode "QLD 4172"
+    if (!tag && /^[A-Z][A-Z\s]{1,}$/.test(desc) && desc.trim().length <= 15) continue;  // short all-caps "AUSTRALIA", "ALPHA HPA"
     // Resolve tag: try extractTagFromDesc on raw tag, then tag+desc combined (handles code split
     // across columns: "3 620 - VE" + "- 004 - Knockout Po" → "620-VE-004"), then looksLikeTag,
     // then desc alone

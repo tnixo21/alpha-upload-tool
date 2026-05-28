@@ -530,6 +530,36 @@ function tryParseDeliveryDocket(allItems) {
   return [{ tag, desc, qty:1, wt, len, wid, hgt, crate:'', bay:'', row:'', detectedPO:'' }];
 }
 
+// ── FALLBACK: GEA-style delivery note parsed from OCR text ──────────────────
+// Pattern: 6-digit item no + material code + ordered qty + delivered qty + weight KG
+// Followed by description lines, ending with "Dimensions as per PLAN-XXXXX-PosNN"
+function tryParseGEADeliveryNote(text) {
+  const rows = [];
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(\d{5,6})\s+(\S+)\s+(\d+)\s*\w+\s+\d+\s*\w+\s+([\d.,]+)\s*KG/i);
+    if (!m) continue;
+    const qty = parseInt(m[3]);
+    const wt  = parseFloat(m[4].replace(',', '.'));
+    let desc = '', planRef = '';
+    for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+      if (/^\d{5,6}\s+/.test(lines[j])) break;
+      const pm = lines[j].match(/Dimensions as per (PLAN[\w-]+)/i);
+      if (pm) { planRef = pm[1]; break; }
+      if (!desc && lines[j].length > 15 &&
+          !/^(Commodity|Country|Ref:|Type |GEA|Am Hard|Page\s)/i.test(lines[j]) &&
+          !/[§©®]/.test(lines[j]) &&
+          !/^[a-z\d]\d/.test(lines[j])) {      // skip OCR artefacts like "m1 §-TD"
+        desc = lines[j];
+      }
+    }
+    const tag = planRef ? planRef.replace(/^PLAN-/, '') : m[1];
+    rows.push({ tag, desc: desc || m[2], qty, wt,
+                len: '', wid: '', hgt: '', crate: '', bay: '', row: '', detectedPO: '' });
+  }
+  return rows.length ? rows : null;
+}
+
 // ── FALLBACK: OCR for scanned/image PDFs (Tesseract.js) ─────────────────────
 async function tryParseWithOCR(pdf) {
   if (!window.Tesseract) {
@@ -555,6 +585,10 @@ async function tryParseWithOCR(pdf) {
     } catch(e) { /* page OCR failed */ }
   }
   if (!fullText.trim()) return null;
+
+  // Try structured delivery note formats first (text-based, most accurate)
+  const geaRows = tryParseGEADeliveryNote(fullText);
+  if (geaRows && geaRows.length) return { rows: geaRows, warn: 'OCR extracted — please verify all values.' };
 
   // Convert OCR text to synthetic allItems using line/word positions
   const ocrItems = [];

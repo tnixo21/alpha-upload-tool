@@ -639,9 +639,16 @@ function mkPallet(prefix, bay, row, crate) {
 }
 
 function dedupTags(rows) {
-  const cnt={}; rows.forEach(r=>{cnt[r.tag]=(cnt[r.tag]||0)+1;});
-  const idx={};
-  return rows.map(r=>{ if(cnt[r.tag]<=1) return r; idx[r.tag]=(idx[r.tag]||0)+1; return{...r,tag:r.tag+'-'+idx[r.tag]}; });
+  // Only suffix rows that are exact duplicates (same tag + desc + qty); different-qty rows with the same tag are distinct items
+  const key = r => `${r.tag}||${r.desc}||${r.qty}`;
+  const cnt = {}; rows.forEach(r => { cnt[key(r)] = (cnt[key(r)]||0)+1; });
+  const idx = {};
+  return rows.map(r => {
+    const k = key(r);
+    if (cnt[k] <= 1) return r;
+    idx[k] = (idx[k]||0)+1;
+    return { ...r, tag: r.tag + '-' + idx[k] };
+  });
 }
 
 // ── EXTRACT ────────────────────────────────────────────────

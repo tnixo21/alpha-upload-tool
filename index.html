@@ -278,15 +278,15 @@ function renderFile(id, name, isPdf) {
     <div class="file-fields">
       <div class="field-group">
         <label>Purchase Order</label>
-        <input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'po',this.value)">
+        <input type="text" placeholder="e.g. PO005767" oninput="setDoc(${id},'po',this.value)">
       </div>
       <div class="field-group">
         <label>Pallet prefix</label>
-        <input type="text" placeholder="e.g. PK43A" oninput="setDoc(${id},'prefix',this.value)">
+        <input type="text" placeholder="e.g. AHT" oninput="setDoc(${id},'prefix',this.value)">
       </div>
       <div class="field-group span2">
-        <label>Notes from paperwork</label>
-        <textarea placeholder="e.g. Bay 10 Row 3 &middot; weight only, no dimensions &middot; use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
+        <label>Notes — tag mappings, bay/row, options</label>
+        <textarea placeholder="Vaporizer Stage 1  Tag: 620-VE-002&#10;Knock out Pot  Tag: 620-VE-004&#10;Bay 10 Row 3 · weight only, no dimensions" oninput="setDoc(${id},'notes',this.value)"></textarea>
       </div>
     </div>`;
   document.getElementById('file-list').appendChild(div);
@@ -310,7 +310,7 @@ const KW = {
           'part no','part number',
           'article no','article number',
           'material no','material number',
-          'item no','item number','item code'],
+          'item no','item number','item code','item'],
   desc:  ['brief description','item description','product description',
           'product type','description','desc'],
   qty:   ['quantity','qty','nos.','nos','no. of items','pcs','pieces'],
@@ -328,7 +328,14 @@ const KW = {
 };
 const kw = (c, list) => list.some(k => String(c ?? '').toLowerCase().trim().includes(k));
 const findHdr = rows => { for (let i = 0; i < Math.min(rows.length, 50); i++) if (rows[i].some(c => kw(c,KW.tag)) && rows[i].some(c => kw(c,KW.desc))) return i; return -1; };
-const buildCM = hdr => { const m = {}; hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; }); return m; };
+const buildCM = hdr => {
+  const m = {};
+  hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; });
+  // "Equipment number (Client)" / "Client tag" beats the generic "item no" match
+  hdr.forEach((c,i) => { if (/equipment\s*(number|no)/i.test(String(c)) || /client\s*(tag|no)\b/i.test(String(c))) m.tag = i; });
+  return m;
+};
+const extractTagFromDesc = desc => { const m = String(desc||'').match(/\b([A-Z0-9]{2,5}-[A-Z]{1,4}-\d{3,}[A-Z0-9]*)\b/i); return m ? m[1] : ''; };
 const unitOf = c => { const s=String(c??'').toLowerCase(); return s.includes('(mm)')||s.endsWith('mm')?'mm':s.includes('(cm)')||s.endsWith('cm')?'cm':null; };
 // Smart number parser: handles "1,100.00" (thousands+decimal) and "1.100,00" (EU format)
 const _pn = s => { s=String(s).trim(); if(s.includes(',')&&s.includes('.')) s=s.replace(/,/g,''); else s=s.replace(/,/g,'.'); return parseFloat(s.replace(/[^0-9.]/g,'')); };
@@ -342,13 +349,13 @@ function parseXL(buf) {
   const hi = findHdr(raw);
   if (hi < 0) return { rows: [], warn: 'Could not detect header row — check for TAG No and Description columns.' };
   const hdr = raw[hi], cm = buildCM(hdr);
-  if (cm.tag === undefined) return { rows: [], warn: 'No TAG column found.' };
   const uL=unitOf(hdr[cm.len]), uW=unitOf(hdr[cm.wid]), uH=unitOf(hdr[cm.hgt]);
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
   for (let i = hi+1; i < raw.length; i++) {
     const r = raw[i];
-    const tag   = String(r[cm.tag]??'').trim();
+    let tag     = cm.tag  !==undefined ? String(r[cm.tag]??'').trim() : '';
+    const desc  = cm.desc !==undefined ? String(r[cm.desc]??'').trim() : '';
     const crate = cm.crate!==undefined ? String(r[cm.crate]??'').trim() : '';
     const wt    = cm.wt   !==undefined ? r[cm.wt]   : '';
     const lv    = cm.len  !==undefined ? r[cm.len]  : '';
@@ -358,13 +365,15 @@ function parseXL(buf) {
     const row   = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
     if (!tag && crate && (wt||lv||wv||hv)) { cr={num:crate,wt:toN(wt)||cr.wt,len:lv||cr.len,wid:wv||cr.wid,hgt:hv||cr.hgt,bay:bay||cr.bay,row:row||cr.row}; continue; }
     if (crate && crate!==cr.num) { cr.num=crate; if(wt)cr.wt=toN(wt); if(lv)cr.len=lv; if(wv)cr.wid=wv; if(hv)cr.hgt=hv; if(bay)cr.bay=bay; if(row)cr.row=row; }
-    if (!tag) continue;
-    out.push({ tag, desc:String(r[cm.desc]??'').trim(), qty:toN(r[cm.qty])||1,
+    // If no tag, try to extract an engineering code from description; skip only if truly empty
+    if (!tag) tag = extractTagFromDesc(desc);
+    if (!tag && !desc) continue;
+    out.push({ tag, desc, qty: toN(r[cm.qty]) || 1,
       wt:toN(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL), wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
       crate:cr.num, bay:cr.bay, row:cr.row,
       detectedPO: cm.po!==undefined ? String(r[cm.po]??'').trim() : '' });
   }
-  return { rows:out, warn:out.length===0?'No tagged rows found — check TAG No column has values.':null };
+  return { rows:out, warn:out.length===0?'No data rows found — check the file has a recognisable header row.':null };
 }
 
 // ── PDF PARSING ────────────────────────────────────────────
@@ -540,11 +549,14 @@ async function parsePDF(buf) {
       if (wt) cr.wt = toN(wt); if (lv) cr.len = lv; if (wv) cr.wid = wv; if (hv) cr.hgt = hv;
       if (bay) cr.bay = bay; if (row) cr.row = row;
     }
-    if (!tag || !looksLikeTag(tag)) continue;
     const desc = String(cells.desc ?? '').trim();
-    if (/^\d+$/.test(tag) && !desc) continue;
+    // Resolve tag: if raw value fails looksLikeTag, try extracting from description
+    let resolvedTag = (tag && looksLikeTag(tag)) ? tag : extractTagFromDesc(desc);
+    // Skip completely empty rows; skip bare-number tags with no description (summary rows)
+    if (!resolvedTag && !desc) continue;
+    if (/^\d+$/.test(resolvedTag) && !desc) continue;
 
-    out.push({ tag, desc, qty: toN(cells.qty) || 1,
+    out.push({ tag: resolvedTag, desc, qty: toN(cells.qty) || 1,
       wt:  toN(wt  !== '' ? wt  : cr.wt),
       len: toM(lv  !== '' ? lv  : cr.len, uL),
       wid: toM(wv  !== '' ? wv  : cr.wid, uW),
@@ -557,19 +569,22 @@ async function parsePDF(buf) {
 }
 
 function parseNotes(notes) {
-  const r={bay:'',row:'',noDims:false};
+  const r = { bay:'', row:'', noDims:false, tagMap:[] };
   const bm=notes.match(/bay\s*(\d+)/i), rm=notes.match(/row\s*(\d+)/i);
   if(bm) r.bay=bm[1]; if(rm) r.row=rm[1];
   if(/no dim|weight only/i.test(notes)) r.noDims=true;
+  // Parse "Description  Tag: VALUE" lines — e.g. "Vaporizer Stage 1  Tag: 620-VE-002"
+  const re = /([^\n]+?)\s+[Tt]ag\s*:\s*(\S+)/g; let tm;
+  while ((tm = re.exec(notes)) !== null) r.tagMap.push({ key: tm[1].trim().toLowerCase(), tag: tm[2].trim() });
   return r;
 }
 
 function mkPallet(prefix, bay, row, crate) {
-  prefix=(prefix||'PK').trim();
+  prefix=(prefix||'').trim();
   const c=String(crate||'').trim(), b=String(bay||'').trim(), rw=String(row||'').trim();
-  if(b&&rw&&c) return `${prefix} Bay ${b} Row ${rw} Crate ${c}`;
-  if(b&&c)     return `${prefix} Bay ${b} Crate ${c}`;
-  if(c)        return `${prefix}-Crate no.${c}`;
+  if(b&&rw&&c) return `${prefix} Bay ${b} Row ${rw} Crate ${c}`.trim();
+  if(b&&c)     return `${prefix} Bay ${b} Crate ${c}`.trim();
+  if(c)        return prefix ? `${prefix}-Crate no.${c}` : `Crate ${c}`;
   return prefix;
 }
 
@@ -595,12 +610,24 @@ async function runExtract() {
       const { rows, warn } = doc.isPdf ? await parsePDF(buf) : parseXL(buf);
       if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
       const ni = parseNotes(doc.notes);
-      all = all.concat(rows.map(r => ({
-        id: uid++, tag:r.tag, desc:r.desc, qty:r.qty,
-        wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
-        pallet: mkPallet(doc.prefix, r.bay||ni.bay, r.row||ni.row, r.crate),
-        po: doc.po || r.detectedPO || ''
-      })));
+      all = all.concat(rows.map(r => {
+        let tag = r.tag;
+        // Apply notes tagMap: remap bare item numbers / empty tags using description match
+        if (ni.tagMap.length && (!tag || /^\d+$/.test(tag))) {
+          const dl = (r.desc || '').toLowerCase();
+          const found = ni.tagMap.find(e => {
+            const keys = e.key.split(/\s+/);
+            return dl.includes(e.key) || keys.every(w => w.length > 2 && dl.includes(w));
+          });
+          if (found) tag = found.tag;
+        }
+        return {
+          id: uid++, tag, desc:r.desc, qty:r.qty,
+          wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
+          pallet: mkPallet(doc.prefix, r.bay||ni.bay, r.row||ni.row, r.crate),
+          po: doc.po || r.detectedPO || ''
+        };
+      }));
     } catch(e) { errors.push(`<b>${esc(doc.name)}</b> — ${esc(e.message)}`); }
   }
 

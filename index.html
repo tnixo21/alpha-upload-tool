@@ -310,7 +310,7 @@ const KW = {
           'part no','part number',
           'article no','article number',
           'material no','material number',
-          'item no','item number','item code','item'],
+          'item no','item number','item code'],
   desc:  ['brief description','item description','product description',
           'product type','description','desc'],
   qty:   ['quantity','qty','nos.','nos','no. of items','pcs','pieces'],
@@ -372,7 +372,7 @@ function parseXL(buf) {
     if (_bm) { fixedBay = _bm[1]; cm.row = cm.bay; delete cm.bay; }
   }
   const uL=unitOf(hdr[cm.len]), uW=unitOf(hdr[cm.wid]), uH=unitOf(hdr[cm.hgt]);
-  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
+  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'', inherit:false };
   const out = [];
   for (let i = hi+1; i < raw.length; i++) {
     const r = raw[i];
@@ -387,13 +387,13 @@ function parseXL(buf) {
     const _rr   = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
     const row   = _rr.match(/\d+/) ? _rr.match(/\d+/)[0] : _rr;
     if (/^Note\s/i.test(crate) || /^Note\s/i.test(tag)) continue;
-    if (!tag && crate && (wt||lv||wv||hv)) { cr={num:crate,wt:toN(wt)||cr.wt,len:lv||cr.len,wid:wv||cr.wid,hgt:hv||cr.hgt,bay:bay||cr.bay,row:row||cr.row}; continue; }
-    if (crate && crate!==cr.num) { cr.num=crate; if(wt)cr.wt=toN(wt); if(lv)cr.len=lv; if(wv)cr.wid=wv; if(hv)cr.hgt=hv; if(bay)cr.bay=bay; if(row)cr.row=row; }
+    if (!tag && crate && (wt||lv||wv||hv)) { cr={num:crate,wt:toN(wt)||cr.wt,len:lv||cr.len,wid:wv||cr.wid,hgt:hv||cr.hgt,bay:bay||cr.bay,row:row||cr.row,inherit:true}; continue; }
+    if (crate && crate!==cr.num) { cr.num=crate; cr.inherit=false; if(wt)cr.wt=toN(wt); if(lv)cr.len=lv; if(wv)cr.wid=wv; if(hv)cr.hgt=hv; if(bay)cr.bay=bay; if(row)cr.row=row; }
     // If no tag, try to extract an engineering code from the description; skip only if truly empty
     if (!tag) tag = extractTagFromDesc(desc);
     if (!tag && !desc) continue;
     out.push({ tag, desc, qty: toN(r[cm.qty]) || 1,
-      wt:toN(wt!==''?wt:cr.wt), len:toM(lv!==''?lv:cr.len,uL), wid:toM(wv!==''?wv:cr.wid,uW), hgt:toM(hv!==''?hv:cr.hgt,uH),
+      wt:toN(wt!==''?wt:(cr.inherit?cr.wt:'')), len:toM(lv!==''?lv:(cr.inherit?cr.len:''),uL), wid:toM(wv!==''?wv:(cr.inherit?cr.wid:''),uW), hgt:toM(hv!==''?hv:(cr.inherit?cr.hgt:''),uH),
       crate:cr.num, bay:cr.bay, row:cr.row,
       detectedPO: cm.po!==undefined ? String(r[cm.po]??'').trim() : '' });
   }
@@ -775,7 +775,7 @@ async function parsePDF(buf) {
     return (result.num || result.wt != null || result.l) ? result : null;
   }
 
-  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
+  let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'', inherit:false };
   const out = [];
 
   for (let i = dataStart; i < rawRows.length; i++) {

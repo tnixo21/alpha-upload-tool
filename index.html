@@ -254,23 +254,13 @@ function wireDZ(dzId, inputId, cb) {
 }
 
 // â”€â”€ FILE LIST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// -- KNOWN PK REGISTRY (from confirmed shipments) -------------
-const PK_REGISTRY = [
-  { pk: 'PK-01',  label: 'PK-01 — Austruct (Structural steel)' },
-  { pk: 'PK-27',  label: 'PK-27 — SWRM #100 loose items' },
-  { pk: 'PK-35',  label: 'PK-35 — Chemelex (Heat tracing)' },
-  { pk: 'PK-40A', label: 'PK-40A — Instruments (Krohne / E+H / Wika)' },
-  { pk: 'PK-43',  label: 'PK-43 — SchuF / Bray valves' },
-  { pk: 'PK-71A', label: 'PK-71A — Allied Heat Transfer (Vaporisers)' },
-  { pk: 'PK-92A', label: 'PK-92A — GEA Wiegand (Jet Mixers)' },
-];
 let uid = 1;
 const docs = [];
 
 function addFile(file) {
   const id = uid++;
   const isPdf = /\.pdf$/i.test(file.name);
-  docs.push({ id, file, name: file.name, isPdf, po: '', prefix: '', notes: '', isSpares: false });
+  docs.push({ id, file, name: file.name, isPdf, po: '', prefix: '', notes: '' });
   renderFile(id, file.name, isPdf);
   document.getElementById('extract-btn').style.display = 'block';
 }
@@ -285,47 +275,24 @@ function renderFile(id, name, isPdf) {
       <span class="file-name" title="${esc(name)}">${esc(name)}</span>
       <button class="btn-del" onclick="removeFile(${id})" title="Remove">&times;</button>
     </div>
-    <div style="margin-bottom:8px">
-      <div class="field-group">
-        <label>Quick PK select</label>
-        <select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.84rem;padding:7px 10px;outline:none;font-family:inherit;width:100%;transition:border-color .15s" onchange="applyPK(${id},this.value)">
-          <option value="">— select a known PK —</option>
-          ${PK_REGISTRY.map(p=>`<option value="${p.pk}">${p.label}</option>`).join('')}
-        </select>
-      </div>
-    </div>
     <div class="file-fields">
       <div class="field-group">
         <label>Purchase Order</label>
-        <input type="text" id="po-${id}" placeholder="e.g. PK-35" oninput="setDoc(${id},'po',this.value)">
+        <input type="text" placeholder="e.g. PK-43" oninput="setDoc(${id},'po',this.value)">
       </div>
       <div class="field-group">
         <label>Pallet prefix</label>
-        <input type="text" id="pfx-${id}" placeholder="e.g. PK-35" oninput="setDoc(${id},'prefix',this.value)">
+        <input type="text" placeholder="e.g. PK-43" oninput="setDoc(${id},'prefix',this.value)">
       </div>
       <div class="field-group span2">
         <label>Notes from paperwork</label>
         <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description" oninput="setDoc(${id},'notes',this.value)"></textarea>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin-top:8px">
-          <input type="checkbox" onchange="setDoc(${id},'isSpares',this.checked)">
-          <span style="font-size:.83rem;color:var(--muted)">Spare items — append "- SP" to all tags</span>
-        </label>
       </div>
     </div>`;
   document.getElementById('file-list').appendChild(div);
 }
 
-function setDoc(id, k, v) { const d = docs.find(x => x.id === id); if (d) d[k] = typeof v === 'string' ? v.trim() : v; }
-
-function applyPK(id, pk) {
-  if (!pk) return;
-  setDoc(id, 'po', pk);
-  setDoc(id, 'prefix', pk);
-  const poEl = document.getElementById('po-' + id);
-  const pfxEl = document.getElementById('pfx-' + id);
-  if (poEl) poEl.value = pk;
-  if (pfxEl) pfxEl.value = pk;
-}
+function setDoc(id, k, v) { const d = docs.find(x => x.id === id); if (d) d[k] = v.trim(); }
 
 function removeFile(id) {
   const i = docs.findIndex(d => d.id === id);
@@ -917,15 +884,14 @@ function mkPallet(prefix, bay, row, crate) {
 }
 
 function dedupTags(rows) {
-  // Suffix any tag that appears more than once — same RPN for different products
-  // (e.g. 664775-000 for both PSE-280 and PSE-540) must become unique via -1, -2.
-  const tagCount = {};
-  rows.forEach(r => { if (r.tag) tagCount[r.tag] = (tagCount[r.tag] || 0) + 1; });
-  const tagIdx = {};
+  const key = r => `${r.tag}||${r.desc}||${r.qty}`;
+  const cnt = {}; rows.forEach(r => { cnt[key(r)] = (cnt[key(r)]||0)+1; });
+  const idx = {};
   return rows.map(r => {
-    if (!r.tag || tagCount[r.tag] <= 1) return r;
-    tagIdx[r.tag] = (tagIdx[r.tag] || 0) + 1;
-    return { ...r, tag: r.tag + '-' + tagIdx[r.tag] };
+    const k = key(r);
+    if (cnt[k] <= 1) return r;
+    idx[k] = (idx[k]||0)+1;
+    return { ...r, tag: r.tag + '-' + idx[k] };
   });
 }
 
@@ -956,7 +922,6 @@ async function runExtract() {
           });
           if (found) tag = found.tag;
         }
-        if (doc.isSpares && tag) tag = tag + '- SP';
         return {
           id: uid++, tag, desc:r.desc, qty:r.qty,
           wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,

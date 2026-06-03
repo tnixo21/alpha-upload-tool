@@ -112,7 +112,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <!-- ONE-TIME SETUP -->
 <div id="setup-section">
   <div class="setup-banner">
-    <h2>One-time setup â€” upload your Alpha template</h2>
+    <h2>One-time setup — upload your Alpha template</h2>
     <p>The template is saved in your browser. You only need to do this once.</p>
     <div class="dz" id="setup-dz" onclick="document.getElementById('setup-input').click()">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -137,7 +137,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
     <div class="dz" id="src-dz" onclick="document.getElementById('src-input').click()">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
       <p class="primary">Drop Excel or PDF files here, or click to browse</p>
-      <p class="secondary">Multiple files supported &nbsp;Â·&nbsp; .xlsx .xls .pdf</p>
+      <p class="secondary">Multiple files supported &nbsp;·&nbsp; .xlsx .xls .pdf</p>
     </div>
     <input type="file" id="src-input" accept=".xlsx,.xls,.pdf" multiple style="display:none">
     <div class="file-list" id="file-list"></div>
@@ -145,7 +145,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 
   <!-- STEP 2 -->
   <button class="btn-primary" id="extract-btn" onclick="runExtract()" style="display:none">
-    Preview extracted data â†’
+    Preview extracted data →
   </button>
 
   <!-- STEP 3 -->
@@ -174,7 +174,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
       <input type="text" id="out-name" placeholder="Alpha_Upload_YYYYMMDD.xlsx">
     </div>
     <button class="btn-generate" onclick="generate()">Generate &amp; Download</button>
-    <div class="hint" style="margin-top:10px;text-align:center">Downloads an .xlsx file â€” open in Excel to review or print.</div>
+    <div class="hint" style="margin-top:10px;text-align:center">Downloads an .xlsx file — open in Excel to review or print.</div>
   </div>
 
   <div class="footer">
@@ -240,7 +240,7 @@ function showMain() {
   document.getElementById('setup-section').style.display = 'none';
   document.getElementById('main-section').style.display = 'block';
   const name = localStorage.getItem(TPL_NAME_KEY) || 'Template';
-  document.getElementById('tpl-bar-name').textContent = 'âœ“ ' + name;
+  document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
 }
 
 // â”€â”€ DROP ZONES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -313,7 +313,7 @@ const KW = {
           'item no','item number','item code'],
   desc:  ['brief description','item description','product description',
           'product type','description','desc'],
-  qty:   ['quantity','qty','nos.','nos','no. of items','pcs','pieces'],
+  qty:   ['quantity','qty','no. of items','pcs','pieces'],
   wt:    ['gross weight','unit net weight','net weight','unit weight',
           'g.w.','gw','weight'],
   len:   ['length','l(mm)','l (mm)','l(m)','dim l','l(cm)','packed l'],
@@ -339,6 +339,8 @@ const buildCM = hdr => {
   });
   const grossIdx = hdr.findIndex(c => /gross\s*weight/i.test(String(c)));
   if (grossIdx >= 0) m.wt = grossIdx;
+  const qtyIdx = hdr.findIndex(c => /^quantity$/i.test(String(c).trim()));
+  if (qtyIdx >= 0) m.qty = qtyIdx;
   // "Equipment number (Client)" / "Client tag" beats the generic "item no" match
   hdr.forEach((c,i) => { if (/equipment\s*(number|no)/i.test(String(c)) || /client\s*(tag|no)\b/i.test(String(c))) m.tag = i; });
   return m;
@@ -363,7 +365,7 @@ function parseXL(buf) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const hi = findHdr(raw);
-  if (hi < 0) return { rows: [], warn: 'Could not detect header row â€” check for TAG No and Description columns.' };
+  if (hi < 0) return { rows: [], warn: 'Could not detect header row — check for TAG No and Description columns.' };
   const hdr = raw[hi], cm = buildCM(hdr);
   // Handle 'IG BAY#18A' column: bay in header, row numbers in cells
   let fixedBay = '';
@@ -397,7 +399,7 @@ function parseXL(buf) {
       crate:cr.num, bay:cr.bay, row:cr.row,
       detectedPO: cm.po!==undefined ? String(r[cm.po]??'').trim() : '' });
   }
-  return { rows:out, warn:out.length===0?'No data rows found â€” check the file has a recognisable header row.':null };
+  return { rows:out, warn:out.length===0?'No data rows found — check the file has a recognisable header row.':null };
 }
 
 // â”€â”€ FALLBACK: grouped-crate packing list (CIPL/Bray style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -418,7 +420,7 @@ function tryParseGroupedCrate(allItems) {
   });
 
   // Cap content to the region of the first page (don't let last crate absorb page 2).
-  // Estimate end of first page as last crate label y + 2Ã— the average inter-crate gap.
+  // Estimate end of first page as last crate label y + 2× the average inter-crate gap.
   const avgGap = crateItems.length > 1
     ? (crateItems[crateItems.length-1].y - crateItems[0].y) / (crateItems.length - 1)
     : 200;
@@ -515,7 +517,7 @@ function tryParseDeliveryDocket(allItems) {
     if (d) desc = d.text;
   }
 
-  // Weight â€” join all numeric fragments on same y row (e.g. "1" + "5" â†’ "15")
+  // Weight — join all numeric fragments on same y row (e.g. "1" + "5" → "15")
   const wtIdx = allItems.findIndex(i => /^Weight:?$/i.test(i.text));
   let wt = '';
   if (wtIdx >= 0) {
@@ -604,7 +606,7 @@ async function tryParseWithOCR(pdf) {
 
   // Try structured delivery note formats first (text-based, most accurate)
   const geaRows = tryParseGEADeliveryNote(fullText);
-  if (geaRows && geaRows.length) return { rows: geaRows, warn: 'OCR extracted â€” please verify all values.' };
+  if (geaRows && geaRows.length) return { rows: geaRows, warn: 'OCR extracted — please verify all values.' };
 
   // Convert OCR text to synthetic allItems using line/word positions
   const ocrItems = [];
@@ -615,9 +617,9 @@ async function tryParseWithOCR(pdf) {
   });
   // Re-run grouped-crate and delivery-docket fallbacks on OCR items
   const gcRows = tryParseGroupedCrate(ocrItems);
-  if (gcRows && gcRows.length) return { rows: gcRows, warn: 'OCR extracted â€” please verify all values.' };
+  if (gcRows && gcRows.length) return { rows: gcRows, warn: 'OCR extracted — please verify all values.' };
   const ddRows = tryParseDeliveryDocket(ocrItems);
-  if (ddRows && ddRows.length) return { rows: ddRows, warn: 'OCR extracted â€” please verify all values.' };
+  if (ddRows && ddRows.length) return { rows: ddRows, warn: 'OCR extracted — please verify all values.' };
 
   // Last resort: pull any engineering codes directly
   const codeRe = /\b([A-Z0-9]{2,5}-[A-Z]{1,4}-\d{3,}[A-Z0-9]*)\b/gi;
@@ -625,14 +627,14 @@ async function tryParseWithOCR(pdf) {
   if (!tags.length) return null;
   return {
     rows: tags.map(tag => ({ tag, desc:'', qty:1, wt:'', len:'', wid:'', hgt:'', crate:'', bay:'', row:'', detectedPO:'' })),
-    warn: 'OCR extracted tag codes only â€” descriptions and dimensions need manual entry.'
+    warn: 'OCR extracted tag codes only — descriptions and dimensions need manual entry.'
   };
 }
 
 // â”€â”€ PDF PARSING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
-  if (!lib) throw new Error('PDF.js did not load â€” check your internet connection.');
+  if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
   lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
@@ -655,7 +657,7 @@ async function parsePDF(buf) {
   if (!allItems.length) {
     const ocrResult = await tryParseWithOCR(pdf);
     if (ocrResult) return ocrResult;
-    return { rows: [], warn: 'No text found in PDF â€” file may be scanned/image-only. OCR found no items; add rows manually.' };
+    return { rows: [], warn: 'No text found in PDF — file may be scanned/image-only. OCR found no items; add rows manually.' };
   }
 
   allItems.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
@@ -677,14 +679,14 @@ async function parsePDF(buf) {
 
   const textRows = rawRows.map(row => row.map(i => i.text));
 
-  // Find header row â€” if none, try specialised fallback parsers before giving up
+  // Find header row — if none, try specialised fallback parsers before giving up
   const hi = findHdr(textRows);
   if (hi < 0) {
     const gcRows = tryParseGroupedCrate(allItems);
     if (gcRows && gcRows.length) return { rows: gcRows };
     const ddRows = tryParseDeliveryDocket(allItems);
     if (ddRows && ddRows.length) return { rows: ddRows };
-    return { rows: [], warn: 'Could not detect table header in PDF â€” add rows manually.' };
+    return { rows: [], warn: 'Could not detect table header in PDF — add rows manually.' };
   }
 
   const hdrItems = rawRows[hi];
@@ -696,7 +698,7 @@ async function parsePDF(buf) {
   if (hi + 1 < rawRows.length) {
     const nextRow = rawRows[hi + 1];
     // A continuation row has short non-numeric tokens only.
-    // We intentionally do NOT check for KW.tag here â€” "Part No." in a second-line
+    // We intentionally do NOT check for KW.tag here — "Part No." in a second-line
     // header (e.g. "Customer Part No.") would otherwise suppress the merge.
     const isContinuation = nextRow.every(item =>
       item.text.length < 25 && !/^\d+[\d.,]*$/.test(item.text)
@@ -712,7 +714,7 @@ async function parsePDF(buf) {
   }
 
   const cm = buildCM(combinedHdrText);
-  if (cm.tag === undefined) return { rows: [], warn: 'No tag/part/serial column found in PDF â€” add rows manually.' };
+  if (cm.tag === undefined) return { rows: [], warn: 'No tag/part/serial column found in PDF — add rows manually.' };
 
   // Build column ranges from ALL header items (not just KW-matched ones).
   // Each column gets a left boundary of h.x - MARGIN, right boundary of next_h.x - MARGIN.
@@ -756,14 +758,14 @@ async function parsePDF(buf) {
   function parseFreeTextCrate(rowText) {
     const t = rowText.join(' ');
     const result = {};
-    // Box/crate number â€” matches "Box 1", "Box 1/2", "Box No. 1", "Crate 2", etc.
+    // Box/crate number — matches "Box 1", "Box 1/2", "Box No. 1", "Crate 2", etc.
     const boxM = t.match(/\b(?:box|crate|case|package|pallet)\s*(?:no\.?\s*)?(\d+)\b/i);
     if (boxM) result.num = boxM[1];
     // Gross weight in kg
     const wtM = t.match(/gross\s*weight\s*:?\s*([\d,]+\.?\d*)\s*kgs?/i);
     if (wtM) result.wt = _pn(wtM[1]);
     // Dimensions L x W x H with unit
-    const dimM = t.match(/([\d,]+\.?\d*)\s*[xXÃ—]\s*([\d,]+\.?\d*)\s*[xXÃ—]\s*([\d,]+\.?\d*)\s*(mm|cm|m)\b/i);
+    const dimM = t.match(/([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*(mm|cm|m)\b/i);
     if (dimM) { result.l=dimM[1]; result.w=dimM[2]; result.h=dimM[3]; result.u=dimM[4].toLowerCase(); }
     // W: X m x L: Y m x H: Z m style (Allied Heat Transfer second-table format)
     if (!result.l) {
@@ -820,7 +822,7 @@ async function parsePDF(buf) {
       if (bay) cr.bay = bay; if (row) cr.row = row;
     }
     const desc = String(cells.desc ?? '').trim();
-    // Noise filters â€” drop rows that are clearly not items
+    // Noise filters — drop rows that are clearly not items
     if (/:\s*$/.test(tag)) continue;                                    // footer labels "Packed By:", "Date:"
     if (/\b[WLH]:\s*[\d.]/i.test(tag)) continue;                       // dimension rows "1 W: 1.3 m x L:"
     if (/^(item|packed|dimensions?)$/i.test(tag)) continue;             // second-table bare headers
@@ -843,7 +845,7 @@ async function parsePDF(buf) {
     if (!tag && /\b[A-Z]{2,4}\s+\d{4}\b/.test(desc)) continue;          // suburb postcode "QLD 4172"
     if (!tag && /^[A-Z][A-Z\s]{1,}$/.test(desc) && desc.trim().length <= 15) continue;  // short all-caps "AUSTRALIA", "ALPHA HPA"
     // Resolve tag: try extractTagFromDesc on raw tag, then tag+desc combined (handles code split
-    // across columns: "3 620 - VE" + "- 004 - Knockout Po" â†’ "620-VE-004"), then looksLikeTag,
+    // across columns: "3 620 - VE" + "- 004 - Knockout Po" → "620-VE-004"), then looksLikeTag,
     // then desc alone
     let resolvedTag = extractTagFromDesc(tag)
       || extractTagFromDesc(tag + ' ' + desc)
@@ -853,12 +855,12 @@ async function parsePDF(buf) {
     if (!resolvedTag && !desc) continue;
     if (/^\d+$/.test(resolvedTag) && !desc) continue;
 
-    let cleanDesc = desc.replace(/^[\s\-â€“â€”]+/, '').trim();
+    let cleanDesc = desc.replace(/^[\s\-–—]+/, '').trim();
     // Strip tag-code suffix that bled into desc when code was split across columns
-    // e.g. resolvedTag="620-VE-004", cleanDesc="004 - Knockout Pot" â†’ "Knockout Pot"
+    // e.g. resolvedTag="620-VE-004", cleanDesc="004 - Knockout Pot" → "Knockout Pot"
     const tagSuffix = resolvedTag ? resolvedTag.split('-').pop() : '';
     if (tagSuffix && /^\d/.test(tagSuffix)) {
-      cleanDesc = cleanDesc.replace(new RegExp('^' + tagSuffix + '\\s*[\\-â€“â€”]\\s*', 'i'), '').trim();
+      cleanDesc = cleanDesc.replace(new RegExp('^' + tagSuffix + '\\s*[\\-–—]\\s*', 'i'), '').trim();
     }
     const cleanCrate = cr.num.replace(/\s+([a-z]{1,3})(?=\s|$)/g, (_, s) => s).trim();
     out.push({ tag: resolvedTag, desc: cleanDesc, qty: toN(cells.qty) || 1,
@@ -876,7 +878,7 @@ async function parsePDF(buf) {
     const ddRows = tryParseDeliveryDocket(allItems);
     if (ddRows && ddRows.length) return { rows: ddRows };
   }
-  return { rows: out, warn: out.length === 0 ? 'No tagged rows found in PDF â€” add rows manually.' : null };
+  return { rows: out, warn: out.length === 0 ? 'No tagged rows found in PDF — add rows manually.' : null };
 }
 
 function parseNotes(notes) {
@@ -884,7 +886,7 @@ function parseNotes(notes) {
   const bm=notes.match(/bay\s*(\d+)/i), rm=notes.match(/row\s*(\d+)/i);
   if(bm) r.bay=bm[1]; if(rm) r.row=rm[1];
   if(/no dim|weight only/i.test(notes)) r.noDims=true;
-  // Parse "Description  Tag: VALUE" lines â€” e.g. "Vaporizer Stage 1  Tag: 620-VE-002"
+  // Parse "Description  Tag: VALUE" lines — e.g. "Vaporizer Stage 1  Tag: 620-VE-002"
   const re = /([^\n]+?)\s+[Tt]ag\s*:\s*(\S+)/g; let tm;
   while ((tm = re.exec(notes)) !== null) r.tagMap.push({ key: tm[1].trim().toLowerCase(), tag: tm[2].trim() });
   return r;
@@ -915,7 +917,7 @@ let previewRows = [];
 
 async function runExtract() {
   const btn = document.getElementById('extract-btn');
-  btn.innerHTML = '<span class="spin"></span> Reading filesâ€¦';
+  btn.innerHTML = '<span class="spin"></span> Reading files…';
   btn.disabled = true;
 
   let all = [], errors = [];
@@ -924,7 +926,7 @@ async function runExtract() {
     try {
       const buf = await doc.file.arrayBuffer();
       const { rows, warn } = doc.isPdf ? await parsePDF(buf) : parseXL(buf);
-      if (warn) errors.push(`<b>${esc(doc.name)}</b> â€” ${esc(warn)}`);
+      if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
       const ni = parseNotes(doc.notes);
       all = all.concat(rows.map(r => {
         let tag = r.tag;
@@ -944,7 +946,7 @@ async function runExtract() {
           po: doc.po || r.detectedPO || ''
         };
       }));
-    } catch(e) { errors.push(`<b>${esc(doc.name)}</b> â€” ${esc(e.message)}`); }
+    } catch(e) { errors.push(`<b>${esc(doc.name)}</b> — ${esc(e.message)}`); }
   }
 
   previewRows = dedupTags(all);
@@ -954,7 +956,7 @@ async function runExtract() {
   document.getElementById('row-count').textContent = previewRows.length + ' rows extracted';
   renderTable();
 
-  btn.innerHTML = 'Preview extracted data â†’';
+  btn.innerHTML = 'Preview extracted data →';
   btn.disabled = false;
 
   document.getElementById('review-card').style.display = 'block';
@@ -1020,13 +1022,13 @@ function generate() {
       });
       XLSX.utils.sheet_add_aoa(ws, aoa, { origin: { r: ins, c: 0 } });
     } else {
-      // Template header not recognised â€” append data as a new sheet so nothing is lost
+      // Template header not recognised — append data as a new sheet so nothing is lost
       const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
       const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Upload Data');
     }
   } else {
-    // No template â€” standard format
+    // No template — standard format
     wb = XLSX.utils.book_new();
     const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order'];
     const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po])];

@@ -318,9 +318,9 @@ const KW = {
           'g.w.','gw','weight'],
   len:   ['length','l(mm)','l (mm)','l(m)','dim l','l(cm)','packed l'],
   wid:   ['width','w(mm)','w (mm)','w(m)','dim w','w(cm)','packed w'],
-  hgt:   ['height','h(mm)','h (mm)','h(m)','dim h','h(cm)','packed h'],
+  hgt:   ['height','heigth','h(mm)','h (mm)','h(m)','dim h','h(cm)','packed h'],
   crate: ['crate no','crate number','crate','pallet no','pallet',
-          'box no','box number','box','carton no','carton'],
+          'box no','box number','box','carton no','carton','case no'],
   bay:   ['bay no','bay'],
   row:   ['storage row','row no','row'],
   po:    ['purchase order no','purchase order number','purchase order',
@@ -330,7 +330,15 @@ const kw = (c, list) => list.some(k => String(c ?? '').toLowerCase().trim().incl
 const findHdr = rows => { for (let i = 0; i < Math.min(rows.length, 50); i++) if (rows[i].some(c => kw(c,KW.tag)) && rows[i].some(c => kw(c,KW.desc))) return i; return -1; };
 const buildCM = hdr => {
   const m = {};
-  hdr.forEach((c,i) => { for (const [k,l] of Object.entries(KW)) if (m[k]===undefined && kw(c,l)) m[k]=i; });
+  hdr.forEach((c,i) => {
+    for (const [k,l] of Object.entries(KW)) {
+      if (m[k] !== undefined || !kw(c,l)) continue;
+      if (k === 'tag' && /\bcase\b/i.test(String(c))) continue;
+      m[k] = i;
+    }
+  });
+  const grossIdx = hdr.findIndex(c => /gross\s*weight/i.test(String(c)));
+  if (grossIdx >= 0) m.wt = grossIdx;
   // "Equipment number (Client)" / "Client tag" beats the generic "item no" match
   hdr.forEach((c,i) => { if (/equipment\s*(number|no)/i.test(String(c)) || /client\s*(tag|no)\b/i.test(String(c))) m.tag = i; });
   return m;
@@ -357,6 +365,12 @@ function parseXL(buf) {
   const hi = findHdr(raw);
   if (hi < 0) return { rows: [], warn: 'Could not detect header row â€” check for TAG No and Description columns.' };
   const hdr = raw[hi], cm = buildCM(hdr);
+  // Handle 'IG BAY#18A' column: bay in header, row numbers in cells
+  let fixedBay = '';
+  if (cm.bay !== undefined && /BAY#/i.test(String(hdr[cm.bay] || ''))) {
+    const _bm = String(hdr[cm.bay]).match(/BAY#(\S+)/i);
+    if (_bm) { fixedBay = _bm[1]; cm.row = cm.bay; delete cm.bay; }
+  }
   const uL=unitOf(hdr[cm.len]), uW=unitOf(hdr[cm.wid]), uH=unitOf(hdr[cm.hgt]);
   let cr = { num:'', wt:'', len:'', wid:'', hgt:'', bay:'', row:'' };
   const out = [];
@@ -364,13 +378,15 @@ function parseXL(buf) {
     const r = raw[i];
     let tag     = cm.tag  !==undefined ? String(r[cm.tag]??'').trim() : '';
     const desc  = cm.desc !==undefined ? String(r[cm.desc]??'').trim() : '';
-    const crate = cm.crate!==undefined ? String(r[cm.crate]??'').trim() : '';
+    const crate = cm.crate!==undefined ? String(r[cm.crate]??'').trim().replace(/\s*-\s*/g,'-') : '';
     const wt    = cm.wt   !==undefined ? r[cm.wt]   : '';
     const lv    = cm.len  !==undefined ? r[cm.len]  : '';
     const wv    = cm.wid  !==undefined ? r[cm.wid]  : '';
     const hv    = cm.hgt  !==undefined ? r[cm.hgt]  : '';
-    const bay   = cm.bay  !==undefined ? String(r[cm.bay]??'').trim() : '';
-    const row   = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
+    const bay   = fixedBay || (cm.bay !==undefined ? String(r[cm.bay]??'').trim() : '');
+    const _rr   = cm.row  !==undefined ? String(r[cm.row]??'').trim() : '';
+    const row   = _rr.match(/\d+/) ? _rr.match(/\d+/)[0] : _rr;
+    if (/^Note\s/i.test(crate) || /^Note\s/i.test(tag)) continue;
     if (!tag && crate && (wt||lv||wv||hv)) { cr={num:crate,wt:toN(wt)||cr.wt,len:lv||cr.len,wid:wv||cr.wid,hgt:hv||cr.hgt,bay:bay||cr.bay,row:row||cr.row}; continue; }
     if (crate && crate!==cr.num) { cr.num=crate; if(wt)cr.wt=toN(wt); if(lv)cr.len=lv; if(wv)cr.wid=wv; if(hv)cr.hgt=hv; if(bay)cr.bay=bay; if(row)cr.row=row; }
     // If no tag, try to extract an engineering code from the description; skip only if truly empty
@@ -884,14 +900,13 @@ function mkPallet(prefix, bay, row, crate) {
 }
 
 function dedupTags(rows) {
-  const key = r => `${r.tag}||${r.desc}||${r.qty}`;
-  const cnt = {}; rows.forEach(r => { cnt[key(r)] = (cnt[key(r)]||0)+1; });
-  const idx = {};
+  const tagCount = {};
+  rows.forEach(r => { if (r.tag) tagCount[r.tag] = (tagCount[r.tag]||0)+1; });
+  const tagIdx = {};
   return rows.map(r => {
-    const k = key(r);
-    if (cnt[k] <= 1) return r;
-    idx[k] = (idx[k]||0)+1;
-    return { ...r, tag: r.tag + '-' + idx[k] };
+    if (!r.tag || tagCount[r.tag] <= 1) return r;
+    tagIdx[r.tag] = (tagIdx[r.tag]||0)+1;
+    return { ...r, tag: r.tag + '-' + tagIdx[r.tag] };
   });
 }
 

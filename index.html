@@ -1514,6 +1514,208 @@ function tryParseUVGuard(allItems) {
   return out.length ? out : null;
 }
 
+
+// ── PORTED FROM UNIVERSAL PACKING LIST TOOL (parser parity 2026-07-03) ────────
+function splitHudsonDesc(text) {
+  if (!text) return { tag: '', desc: '' };
+  let serial = '';
+  const work = text.replace(/\bSERIAL\s+NO\.?\s*([A-Z0-9]+)\b/gi, (_, sn) => {
+    if (!serial) serial = sn; return ' ';
+  }).replace(/\s+/g, ' ').trim();
+  // Code token: contains both letters AND digits, only alphanumeric+dash chars
+  const isCode = t => /[A-Z]/i.test(t) && /\d/.test(t) && /^[A-Z0-9-]+$/i.test(t);
+  const primaryCode = work.split(/\s+/).find(t => isCode(t)) || '';
+  let tag = '';
+  if (primaryCode && serial) tag = primaryCode + '-SN' + serial;
+  else if (primaryCode) tag = primaryCode;
+  else if (serial) tag = 'SN-' + serial;
+  else tag = work;
+  return { tag, desc: work || text };
+}
+
+function tryParseHudson(allItems, rawRows) {
+  if (!allItems.some(i => /^PACKING\s+LIST$/i.test(i.text))) return null;
+  if (!allItems.some(i => /^Container\s+(?:No:?\s*)?[A-Z]{4}\d/i.test(i.text))) return null;
+  if (!allItems.some(i => /^Centimeters$/i.test(i.text))) return null;
+
+  // Purchase order from header ("Purchase Order: 0000191")
+  let basePO = '';
+  for (const item of allItems) {
+    const m = item.text.match(/Purchase\s+Order:\s*(.+)/i);
+    if (m) { basePO = m[1].trim(); break; }
+  }
+
+  // Find container section boundaries
+  const CONTAINER_RE = /^Container\s+(?:No:?\s*)?([A-Z]{4}[\d-]+)/i;
+  const sections = [];
+  rawRows.forEach((row, ri) => {
+    for (const cell of row) {
+      const m = cell.text.match(CONTAINER_RE);
+      if (m) { sections.push({ rowIdx: ri, containerNum: m[1] }); break; }
+    }
+  });
+  if (!sections.length) return null;
+
+  const out = [];
+
+  sections.forEach(({ rowIdx, containerNum }, ci) => {
+    const endIdx = ci + 1 < sections.length ? sections[ci + 1].rowIdx : rawRows.length;
+    const sectionRows = rawRows.slice(rowIdx + 1, endIdx);
+    const poNum = basePO ? `${basePO} #${ci + 1}` : `#${ci + 1}`;
+
+    // Find sub-header row that has "Centimeters"
+    let subHdrIdx = -1;
+    for (let i = 0; i < Math.min(sectionRows.length, 6); i++) {
+      if (sectionRows[i].some(c => /^Centimeters$/i.test(c.text))) { subHdrIdx = i; break; }
+    }
+    if (subHdrIdx < 0) return;
+
+    const dataRows = sectionRows.slice(subHdrIdx + 1);
+    let i = 0, palletSeq = 0;
+
+    while (i < dataRows.length) {
+      const row = dataRows[i];
+      if (!row.length) { i++; continue; }
+
+      // Item row: first cell is qty (small positive integer), second cell is text label
+      const qty = parseInt(row[0].text);
+      if (isNaN(qty) || qty <= 0 || qty > 99 || row.length < 3) { i++; continue; }
+      const labelCell = row[1];
+      if (!labelCell || /^\d+$/.test(labelCell.text.trim())) { i++; continue; }
+      const label = labelCell.text.trim();
+      if (/^TOTAL$/i.test(label)) { i++; continue; }
+
+      palletSeq++;
+      const crateM = label.match(/(\d+)\s*$/);
+      const crateNum = crateM ? crateM[1] : String(palletSeq);
+      const crateLabel = crateM ? `Crate ${crateM[1]}` : `Pallet ${palletSeq}`;
+
+      // All numeric cells after the label, sorted left-to-right
+      // Structure (11 values): L_in W_in H_in L_cm W_cm H_cm Cubic Gross_lbs Net_lbs Gross_kg Net_kg
+      const numCells = row.slice(2).filter(c => /^\d+$/.test(c.text.trim())).sort((a,b) => a.x - b.x);
+      let len='', wid='', hgt='', grossKg='';
+      if (numCells.length >= 10) {
+        len = toM(numCells[3].text, 'cm');
+        wid = toM(numCells[4].text, 'cm');
+        hgt = toM(numCells[5].text, 'cm');
+        grossKg = parseFloat(numCells[9].text);
+      } else if (numCells.length >= 4) {
+        len = toM(numCells[0].text, 'cm');
+        wid = toM(numCells[1].text, 'cm');
+        hgt = toM(numCells[2].text, 'cm');
+        if (numCells[3]) grossKg = parseFloat(numCells[3].text);
+      }
+
+      // Collect description text rows until next item/total/page marker
+      i++;
+      const descLines = [];
+      while (i < dataRows.length) {
+        const nr = dataRows[i];
+        if (!nr.length) { i++; continue; }
+        const first = nr[0].text.trim();
+        const nextQty = parseInt(first);
+        if (!isNaN(nextQty) && nextQty > 0 && nextQty <= 99 && nr.length > 2) break;
+        if (/^(TOTAL|Page\s+\d|SIGNED|PROVISUR)/i.test(first)) break;
+        const line = nr.filter(c => c.x < 220).map(c => c.text).join(' ').trim();
+        if (line) descLines.push(line);
+        i++;
+      }
+
+      const fullDesc = descLines.join(' ').replace(/\s+/g, ' ').trim();
+      const { tag, desc } = splitHudsonDesc(fullDesc);
+
+      out.push({
+        tag:  tag  || crateLabel,
+        desc: desc || fullDesc || crateLabel,
+        qty,
+        wt: grossKg || '',
+        len, wid, hgt,
+        crate: crateNum,
+        bay: '', row: '',
+        detectedPO: poNum,
+        container: containerNum,
+        prebuiltPallet: `${containerNum} ${crateLabel}`,
+      });
+    }
+  });
+
+  if (!out.length) return null;
+  return { rows: out, warn: null };
+}
+
+// ── SchuF Speciality Valves packing list parser ───────────────────────────────
+// Detected by: header has "Order No.", "Part No.", "Serial No." + per-box metadata rows
+function tryParseSchuF(allItems, combinedHdrText, hdrItems, dataStart, rawRows) {
+  const hasSerial = combinedHdrText.some(h=>/serial\s+no/i.test(h));
+  const hasOrder  = combinedHdrText.some(h=>/^order\s+no/i.test(h));
+  const hasPart   = combinedHdrText.some(h=>/^part\s+no/i.test(h));
+  if(!hasSerial||!hasOrder||!hasPart) return null;
+
+  // Build column index map specific to SchuF layout
+  const scm={};
+  combinedHdrText.forEach((h,i)=>{
+    if(/^order\s+no/i.test(h))        scm.po   = i;
+    if(/^part\s+no/i.test(h))          scm.part = i;
+    if(/^description$/i.test(h.trim())) scm.desc = i;
+    if(/serial\s+no/i.test(h))         scm.tag  = i;
+    if(/unit\s+net\s+weight/i.test(h))  scm.wt   = i;
+  });
+  if(scm.tag===undefined||scm.desc===undefined) return null;
+
+  const SKIP=/^(customer\s+address|shipper\s+address|alpha\s+hpa|53-|yarwun|queensland|^au$|ph\.|box\s+summary|total\s+(no\.|qty|gross|net|quantity)|plywood|carton|^order$|^line$|^no\.$|^rel\.$|page\s+\d|^shipment\s+id)/i;
+
+  let boxNum='1', boxL='', boxW='', boxH='';
+  const out=[];
+
+  for(let i=dataStart;i<rawRows.length;i++){
+    const row=rawRows[i]; if(!row.length) continue;
+    const first=row[0].text;
+
+    if(SKIP.test(first)) continue;
+
+    // Box section header: "Box 1/2 - Plywoodcorrugatedbox"
+    const boxM=first.match(/^Box\s+(\d+)/i);
+    if(boxM){ boxNum=boxM[1]; boxL=''; boxW=''; boxH=''; continue; }
+
+    // Box metadata row: Gross Weight / Dimensions
+    if(/^(Gross\s+Weight|Net\s+Weight|Dimensions)/i.test(first)){
+      const txt=row.map(it=>it.text).join(' ');
+      const dm=txt.match(/([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*[xX×]\s*([\d,]+\.?\d*)\s*mm/i);
+      if(dm){boxL=toM(dm[1].replace(/,/g,''),'mm');boxW=toM(dm[2].replace(/,/g,''),'mm');boxH=toM(dm[3].replace(/,/g,''),'mm');}
+      continue;
+    }
+
+    // Map cells to header columns by x-proximity
+    const cells={};
+    for(const it of row){
+      let best=-1,bestD=Infinity;
+      hdrItems.forEach((h,idx)=>{const d=Math.abs(h.x-it.x);if(d<bestD){bestD=d;best=idx;}});
+      if(best<0||bestD>60)continue;
+      if(!cells[best])cells[best]=it.text;else cells[best]+=' '+it.text;
+    }
+    const get=idx=>(idx!==undefined&&cells[idx]!==undefined)?String(cells[idx]).trim():'';
+
+    const tag=get(scm.tag);
+    if(!tag||/^[\*\-\s]+$/.test(tag)) continue; // skip placeholder rows
+
+    const wt=get(scm.wt).replace(/\s*kgs?\.?/i,'').trim();
+    out.push({tag, desc:get(scm.desc), qty:1, wt:toN(wt),
+      len:boxL, wid:boxW, hgt:boxH,
+      crate:boxNum, bay:'', row:'', detectedPO:get(scm.po)});
+  }
+  if(!out.length) return null;
+
+  // Collapse same tag+desc+box into one row (sum qty) — handles identical serialised units
+  const cmap=new Map();
+  for(const r of out){
+    const k=`${r.tag}|${r.desc}|${r.crate}`;
+    if(cmap.has(k))cmap.get(k).qty=(Number(cmap.get(k).qty)||0)+1;
+    else cmap.set(k,{...r});
+  }
+  return {rows:[...cmap.values()], warn:null};
+}
+// ── end ported parsers ──────────────────────────────────────────────────────
+
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -1581,6 +1783,9 @@ async function parsePDF(buf) {
 
   const textRows = rawRows.map(row => row.map(i => i.text));
 
+  const _hudsonR = tryParseHudson(allItems, rawRows);
+  if (_hudsonR) return _hudsonR;
+
   // Find header row — if none, try specialised fallback parsers before giving up
   const hi = findHdr(textRows);
   if (hi < 0) {
@@ -1646,6 +1851,9 @@ async function parsePDF(buf) {
       return { rows: [], warn: 'No tag/part/serial column found in PDF — add rows manually.' };
     }
   }
+
+  const _schuFR = tryParseSchuF(allItems, combinedHdrText, hdrItems, dataStart, rawRows);
+  if (_schuFR) return _schuFR;
 
   // Build column ranges from ALL header items (not just KW-matched ones).
   // Each column gets a left boundary of h.x - MARGIN, right boundary of next_h.x - MARGIN.

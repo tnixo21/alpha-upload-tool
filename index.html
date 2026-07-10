@@ -121,7 +121,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool</h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-10</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -557,6 +557,18 @@ function parseXL(buf, _prefix) {
     if (vr.rows.length > 0) return vr;
   }
 
+  // Priority 1.6: Emerson "Estimated Packing Slip" (PK-40A instruments) — detection-gated
+  // on a header row containing both "Est. Dim_CM" and "Box No.". Must run before the
+  // generic parser, which finds the TAG column but misses the combined-cell dims/weight.
+  const er = _parseEmersonEstPackSlip(wb);
+  if (er.rows.length > 0) return er;
+
+  // Priority 1.7: Austruct "Meas Surv" workbook (PK-01/PK-14 steel) — detection-gated on a
+  // SUMMARY sheet with PACKAGENO. + MEASUREMENT headers. Must run before the generic parser,
+  // which demotes PACKAGENO. to crate and wrongly uses the bare row-counter "No." as the tag.
+  const mr = _parseMeasSurvSummary(wb);
+  if (mr.rows.length > 0) return mr;
+
   // Priority 2: First sheet (standard behaviour)
   let result = _parseXLSheet(wb.Sheets[wb.SheetNames[0]]);
   if (result.rows.length > 0) return result;
@@ -647,6 +659,108 @@ function _parseValmontPackingList(wb, prefix) {
       ? 'Valmont Packing List: no items found — check "TOP ITEM" and description columns.'
       : 'Valmont Final Packing List: ' + out.length + ' items extracted (main items + accessory case). No dimensions in this format — weights only.'
   };
+}
+
+// ── EMERSON "ESTIMATED PACKING SLIP" PARSER ─────────────────────────────────
+// Handles Emerson Process Management (Nanjing) instrument packing slips (PK-40A SHP#7&8 etc.):
+//   LPN NO. | Box No. | Line No. | TAG(#) | Model String | [SO Line] | Est. Pkg. Type |
+//   Est. Dim_CM ("98X77X73") | Est. Volume_CM | Est. WT._KG | Plant
+// Dims (cm, combined in one cell) and gross weight are BOX-level, present only on each
+// box's first row — carried forward so every item in the box shares its box's values.
+function _parseEmersonEstPackSlip(wb) {
+  for (const sn of wb.SheetNames) {
+    const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+    let hi = -1;
+    for (let i = 0; i < Math.min(raw.length, 40); i++) {
+      if (raw[i].some(c => /est\.?\s*dim/i.test(String(c))) &&
+          raw[i].some(c => /^box\s*no\.?$/i.test(String(c).trim()))) { hi = i; break; }
+    }
+    if (hi < 0) continue;
+    const hdr = raw[hi];
+    const boxIdx   = hdr.findIndex(c => /^box\s*no\.?$/i.test(String(c).trim()));
+    const tagIdx   = hdr.findIndex(c => /^tag\s*#?$/i.test(String(c).trim()));
+    const modelIdx = hdr.findIndex(c => /model\s*string/i.test(String(c)));
+    const dimIdx   = hdr.findIndex(c => /est\.?\s*dim/i.test(String(c)));
+    const wtIdx    = hdr.findIndex(c => /est\.?\s*wt/i.test(String(c)));
+    if (boxIdx < 0 || tagIdx < 0) continue;
+    let curBox = '', bx = { wt: '', len: '', wid: '', hgt: '' };
+    const out = [];
+    for (let i = hi + 1; i < raw.length; i++) {
+      const r = raw[i];
+      const box = String(r[boxIdx] ?? '').trim();
+      const tag = String(r[tagIdx] ?? '').trim();
+      if (!box && !tag) continue;               // footer / blank rows
+      if (/^tag\s*#?$/i.test(tag)) continue;    // repeated page header
+      if (box && box !== curBox) { curBox = box; bx = { wt: '', len: '', wid: '', hgt: '' }; }
+      if (dimIdx >= 0) {
+        const dm = String(r[dimIdx] ?? '').match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
+        if (dm) { bx.len = toM(dm[1], 'cm'); bx.wid = toM(dm[2], 'cm'); bx.hgt = toM(dm[3], 'cm'); }
+      }
+      if (wtIdx >= 0 && String(r[wtIdx] ?? '').trim() !== '') bx.wt = toN(r[wtIdx]);
+      if (!tag) continue;
+      out.push({ tag, desc: modelIdx >= 0 ? String(r[modelIdx] ?? '').trim() : '', qty: 1,
+        wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
+        crate: curBox, bay: '', row: '', detectedPO: '' });
+    }
+    if (out.length > 0) return { rows: out,
+      warn: 'Emerson Estimated Packing Slip: ' + out.length + ' items. Dims + weight are box-level — every item in a box shows its box\'s gross weight and dimensions.' };
+  }
+  return { rows: [] };
+}
+
+// ── AUSTRUCT "MEAS SURV" SUMMARY PARSER ─────────────────────────────────────
+// Handles Austruct Industries "Final PL" workbooks (PK-01A/B, PK-14 steel/tank shipments).
+// The SUMMARY sheet is package-level — one row per shipping package:
+//   No. | PACKAGENO. | PACKAG | Package Type | QTY(PCS) | DESCRIPTION | N/W | G/W |
+//   MEASUREMENT (M) [L * W * H on the sub-row] | M3 | ...
+// PACKAGENO. (e.g. 2528-SP3-001) is the shipping mark = the tag/article number.
+// The item-level "Steel Structure"/"Marklist" sheets are deliberately not expanded —
+// upload happens at package level. Weight = gross (G/W); dims already in metres.
+function _parseMeasSurvSummary(wb) {
+  const sn = wb.SheetNames.find(n => /^\s*summary\s*$/i.test(n));
+  if (!sn) return { rows: [] };
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+  const isPkgNo = c => /^packageno\.?$/i.test(String(c ?? '').trim().replace(/\s+/g, ''));
+  let hi = -1;
+  for (let i = 0; i < Math.min(raw.length, 30); i++) {
+    if (raw[i].some(isPkgNo) && raw[i].some(c => /measurement/i.test(String(c)))) { hi = i; break; }
+  }
+  if (hi < 0) return { rows: [] };
+  const hdr = raw[hi], norm = c => String(c ?? '').trim();
+  const pkgNoIdx = hdr.findIndex(isPkgNo);
+  const pkIdx    = hdr.findIndex(c => /^packag$/i.test(norm(c)));
+  const qtyIdx   = hdr.findIndex(c => /qty/i.test(norm(c)));
+  const descIdx  = hdr.findIndex(c => /^description$/i.test(norm(c)));
+  const nwIdx    = hdr.findIndex(c => /n\/w/i.test(norm(c)));
+  const gwIdx    = hdr.findIndex(c => /g\/w/i.test(norm(c)));
+  // The sub-row under the header labels the L / W / H columns beneath "MEASUREMENT (M)"
+  const sub = raw[hi + 1] || [];
+  const lIdx = sub.findIndex(c => /^l$/i.test(norm(c)));
+  const wIdx = sub.findIndex(c => /^w$/i.test(norm(c)));
+  const hIdx = sub.findIndex(c => /^h$/i.test(norm(c)));
+  const out = [];
+  for (let i = hi + 2; i < raw.length; i++) {
+    const r = raw[i];
+    const mark = String(r[pkgNoIdx] ?? '').trim();
+    if (!mark || /total/i.test(mark)) continue;
+    // PACKAG column ("PK01A") → normalised PO ("PK-01A"); UI-entered PO still wins
+    const pk = pkIdx >= 0 ? String(r[pkIdx] ?? '').trim() : '';
+    const po = /^pk-?\w+$/i.test(pk) ? pk.toUpperCase().replace(/^PK-?/, 'PK-') : '';
+    // Source stores summed weights as noisy floats (7199.20000000001) — round for output
+    const r2 = v => v === '' ? '' : Math.round(v * 100) / 100;
+    const r4 = v => v === '' ? '' : Math.round(v * 10000) / 10000;
+    out.push({ tag: mark,
+      desc: descIdx >= 0 ? String(r[descIdx] ?? '').trim() : '',
+      qty: qtyIdx >= 0 ? (toN(r[qtyIdx]) || 1) : 1,
+      wt: r2(gwIdx >= 0 && String(r[gwIdx] ?? '').trim() !== '' ? toN(r[gwIdx]) : (nwIdx >= 0 ? toN(r[nwIdx]) : '')),
+      // MEASUREMENT (M) — values are already metres; no unit heuristic (toM would
+      // wrongly divide a >20 m break-bulk length by 1000)
+      len: r4(lIdx >= 0 ? toN(r[lIdx]) : ''), wid: r4(wIdx >= 0 ? toN(r[wIdx]) : ''), hgt: r4(hIdx >= 0 ? toN(r[hIdx]) : ''),
+      crate: mark, bay: '', row: '', detectedPO: po });
+  }
+  if (out.length === 0) return { rows: [] };
+  return { rows: out,
+    warn: 'Austruct SUMMARY packing list: ' + out.length + ' packages extracted at package level. Tag = shipping mark (PACKAGENO.), weight = gross, dims in metres, qty = pieces inside the package.' };
 }
 
 function _parseXLSheet(ws) {

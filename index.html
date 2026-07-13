@@ -121,7 +121,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.2</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.3</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -199,8 +199,22 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
     <div class="hint" style="margin-top:10px;text-align:center">Downloads the Alpha Supplier sheet — for internal records and packing list reference.</div>
     <div style="height:14px"></div>
     <button class="btn-generate" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)" onclick="generateOngoingXlsx()">📤 Generate Ongoing WMS File</button>
-    <div class="hint" style="margin-top:10px;text-align:center">Downloads <code>_ongoing.xlsx</code> — formatted for direct import via Registers → Import → Purchase order.</div>
+    <div class="hint" style="margin-top:10px;text-align:center">Downloads <code>_ongoing.xlsx</code> — formatted for direct import via Registers → Import → Purchase order.<br>⚠ The Excel import only attaches the <b>first</b> line to each pallet label — for multi-article pallets use the direct upload below.</div>
     <div id="og-file-status" style="margin-top:12px"></div>
+
+    <div style="border-top:1px solid var(--border);margin:20px 0"></div>
+    <div style="font-weight:600;margin-bottom:6px">🔌 Direct upload to Ongoing WMS <span style="font-weight:400;font-size:.78rem;color:var(--muted)">(pallets attached to items)</span></div>
+    <div class="hint" style="margin-bottom:10px">Creates/updates the inbound order via the Ongoing API with every line connected to its Pallet Number — lines sharing a pallet land on the <b>same</b> pallet item (the Excel import can't do this). Needs the local proxy running: <code>node claude-config\tools\proxy.js</code></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <input type="text" id="og-user" placeholder="Ongoing API username" style="flex:1;min-width:160px">
+      <input type="password" id="og-pass" placeholder="Password" style="flex:1;min-width:140px">
+      <button class="btn-primary" id="og-test-btn" onclick="testOngoingConnection()" style="white-space:nowrap">Test Connection →</button>
+    </div>
+    <div id="og-send-wrap" style="display:none">
+      <div id="og-divider" style="border-top:1px dashed var(--border);margin:12px 0"></div>
+      <button class="btn-generate" style="background:linear-gradient(135deg,#b45309,#d97706)" onclick="confirmSendToOngoing()">🚀 Upload to Ongoing WMS — pallets attached</button>
+    </div>
+    <div id="og-status" style="margin-top:12px"></div>
   </div>
 
   <!-- MWR OUTBOUND ORDERS SECTION -->
@@ -392,7 +406,7 @@ function renderFile(id, name, isPdf) {
       </div>
       <div class="field-group span-all" style="grid-column:1/-1">
         <label>Notes from paperwork</label>
-        <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description · tag suffix: - SP" oninput="setDoc(${id},'notes',this.value)"></textarea>
+        <textarea placeholder="e.g. Bay 10 Row 3 · weight only, no dimensions · use Product Type as description · tag suffix: - SP · module level (Austruct: pallet = shipping mark, tag = Module No)" oninput="setDoc(${id},'notes',this.value)"></textarea>
       </div>
     </div>`;
   document.getElementById('file-list').appendChild(div);
@@ -540,7 +554,7 @@ const toN = v => { if(v===''||v==null) return ''; const n=_pn(v); return isNaN(n
 // Qty parser: handles plain numbers AND "300*2" / "130×7" multiplication notation
 const toQty = v => { const s=String(v??'').trim(); if(!s)return ''; const m=s.match(/^([\d,]+(?:[.,]\d+)?)\s*[*×xX]\s*([\d,]+(?:[.,]\d+)?)$/); if(m)return _pn(m[1])*_pn(m[2]); const n=_pn(s); return isNaN(n)?'':n; };
 
-function parseXL(buf, _prefix) {
+function parseXL(buf, _prefix, opts) {
   const wb = XLSX.read(buf, { type: 'array' });
 
   // Priority 1: CASE tab sheets — checked FIRST because the summary sheet would also
@@ -569,6 +583,18 @@ function parseXL(buf, _prefix) {
   // Priority 1.7: Austruct "Meas Surv" workbook (PK-01/PK-14 steel) — detection-gated on a
   // SUMMARY sheet with PACKAGENO. + MEASUREMENT headers. Must run before the generic parser,
   // which demotes PACKAGENO. to crate and wrongly uses the bare row-counter "No." as the tag.
+  // "module level" in the file's Notes switches to the module-level extract (pallet =
+  // shipping mark, tag = Module No); the level is a per-shipment choice, not a file
+  // property, so it is never auto-detected.
+  if (opts && opts.moduleLevel) {
+    const mm = _parseMeasSurvModules(wb);
+    if (mm.rows.length > 0) return mm;
+    const fallback = _parseMeasSurvSummary(wb);
+    if (fallback.rows.length > 0) {
+      fallback.warn = '"module level" was requested but no Steel Structure sheet with an EquipmentNo./ModuleNo. column was found — fell back to PACKAGE-level extract (tag = shipping mark). ' + (fallback.warn || '');
+      return fallback;
+    }
+  }
   const mr = _parseMeasSurvSummary(wb);
   if (mr.rows.length > 0) return mr;
 
@@ -886,7 +912,156 @@ function _parseMeasSurvSummary(wb) {
   }
   if (out.length === 0) return { rows: [] };
   return { rows: out,
-    warn: 'Austruct SUMMARY packing list: ' + out.length + ' packages extracted at package level. Tag = shipping mark (PACKAGENO.), weight = gross, dims in metres, qty = pieces inside the package.' };
+    warn: 'Austruct SUMMARY packing list: ' + out.length + ' packages extracted at package level. Tag = shipping mark (PACKAGENO.), weight = gross, dims in metres, qty = pieces inside the package. For pallet = shipping mark / tag = Module No instead, add "module level" to the file\'s Notes and re-extract.' };
+}
+
+// ── AUSTRUCT MEAS SURV — MODULE-LEVEL MODE ──────────────────────────────────
+// Opt-in via "module level" in the file's Notes (PK-14 Shipment 2 rule, 2026-07-14):
+// pallet = shipping mark (PACKAGENO., e.g. 2505-SP2-001), tag/article = Equipment/
+// Module No (e.g. 265-TK-003), and NO breakdown into mark no's. Reads the "Steel
+// Structure" sheet:
+//   - the package header row carries the module for single-module packages;
+//   - detail rows with a module in the "EquipmentNo./ModuleNo." column aggregate
+//     per module (loose-part crates);
+//   - detail rows with only a mark no derive the module from the mark's prefix
+//     (400-TK-002A-HR1001 → 400-TK-002A);
+//   - rows with neither become one "LOOSE PART" bucket line per package.
+// Weight = SUMMARY gross for single-module packages; summed net for in-crate lines
+// (the source has no per-module gross). Piece counts are reconciled against the
+// SUMMARY sheet and any mismatch is reported loudly in the warning banner.
+function _parseMeasSurvModules(wb) {
+  const sn = wb.SheetNames.find(n => /^\s*summary\s*$/i.test(n));
+  const ssn = wb.SheetNames.find(n => /^steel structure$/i.test(n.trim()));
+  if (!sn || !ssn) return { rows: [] };
+
+  // SUMMARY — authoritative per-package qty/weights/dims (same detection as above)
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+  const isPkgNo = c => /^packageno\.?$/i.test(String(c ?? '').trim().replace(/\s+/g, ''));
+  let hi = -1;
+  for (let i = 0; i < Math.min(raw.length, 30); i++) {
+    if (raw[i].some(isPkgNo) && raw[i].some(c => /measurement/i.test(String(c)))) { hi = i; break; }
+  }
+  if (hi < 0) return { rows: [] };
+  const hdr = raw[hi], norm = c => String(c ?? '').trim();
+  const pkgNoIdx = hdr.findIndex(isPkgNo);
+  const qtyIdx  = hdr.findIndex(c => /qty/i.test(norm(c)));
+  const descIdx = hdr.findIndex(c => /^description$/i.test(norm(c)));
+  const nwIdx   = hdr.findIndex(c => /n\/w/i.test(norm(c)));
+  const gwIdx   = hdr.findIndex(c => /g\/w/i.test(norm(c)));
+  const remIdx  = hdr.findIndex(c => /^remarks?$/i.test(norm(c)));
+  const sub = raw[hi + 1] || [];
+  const lIdx = sub.findIndex(c => /^l$/i.test(norm(c)));
+  const wIdx = sub.findIndex(c => /^w$/i.test(norm(c)));
+  const hIdx = sub.findIndex(c => /^h$/i.test(norm(c)));
+  const r2 = v => v === '' ? '' : Math.round(v * 100) / 100;
+  const r4 = v => v === '' ? '' : Math.round(v * 10000) / 10000;
+  const pkgs = [];
+  for (let i = hi + 2; i < raw.length; i++) {
+    const r = raw[i], mark = String(r[pkgNoIdx] ?? '').trim();
+    if (!mark || /total/i.test(mark)) continue;
+    pkgs.push({ mark,
+      desc: descIdx >= 0 ? String(r[descIdx] ?? '').trim() : '',
+      qty: qtyIdx >= 0 ? (toN(r[qtyIdx]) || 1) : 1,
+      wt: r2(gwIdx >= 0 && String(r[gwIdx] ?? '').trim() !== '' ? toN(r[gwIdx]) : (nwIdx >= 0 ? toN(r[nwIdx]) : '')),
+      len: r4(lIdx >= 0 ? toN(r[lIdx]) : ''), wid: r4(wIdx >= 0 ? toN(r[wIdx]) : ''), hgt: r4(hIdx >= 0 ? toN(r[hIdx]) : ''),
+      remark: remIdx >= 0 ? String(r[remIdx] ?? '').trim() : '' });
+  }
+  if (!pkgs.length) return { rows: [] };
+  const pkgMarks = new Set(pkgs.map(p => p.mark));
+
+  // Steel Structure — module mapping per package
+  const sraw = XLSX.utils.sheet_to_json(wb.Sheets[ssn], { header: 1, defval: '' });
+  const sq = c => String(c ?? '').replace(/\s+/g, '').toLowerCase();
+  let shi = -1;
+  for (let i = 0; i < Math.min(sraw.length, 20); i++) {
+    if (sraw[i].some(c => /^shippingmark/.test(sq(c))) && sraw[i].some(c => /moduleno/.test(sq(c)))) { shi = i; break; }
+  }
+  if (shi < 0) return { rows: [] };
+  const shdr = sraw[shi];
+  const smkIdx  = shdr.findIndex(c => /^shippingmark/.test(sq(c)));
+  const modIdx  = shdr.findIndex(c => /moduleno/.test(sq(c)));
+  const mrkIdx  = shdr.findIndex(c => /^markno/.test(sq(c)));
+  const pcsIdx  = shdr.findIndex(c => /pieces/.test(sq(c)));
+  const sdIdx   = shdr.findIndex(c => /materialdescription/.test(sq(c)));
+  const snwIdx  = shdr.findIndex(c => /^netweight/.test(sq(c)));
+  if (modIdx < 0 || smkIdx < 0) return { rows: [] };
+
+  const MODULE_FROM_MARK = /^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)-[A-Za-z]{1,4}\d{2,}[A-Za-z0-9]*$/;
+  const NOT_A_MODULE = /^loose\s*part/i;
+  const SIZE_REMARK = /^(width:|\d+\s*sets?$)/i;
+  const per = {};
+  let cur = null;
+  for (let i = shi + 1; i < sraw.length; i++) {
+    const r = sraw[i];
+    const mk = String(r[smkIdx] ?? '').trim();
+    if (mk && pkgMarks.has(mk)) { // package header row
+      cur = per[mk] = { headerModule: '', modules: new Map(), bucket: { qty: 0, nw: 0, descs: new Set() } };
+      const hm = String(r[modIdx] ?? '').trim();
+      if (hm && !NOT_A_MODULE.test(hm)) cur.headerModule = hm;
+      continue;
+    }
+    if (!cur || !r.some(c => String(c).trim() !== '')) continue;
+    const modCol = String(r[modIdx] ?? '').trim();
+    const markCol = mrkIdx >= 0 ? String(r[mrkIdx] ?? '').trim() : '';
+    const qty = toN(r[pcsIdx]) || 0;
+    const nw = snwIdx >= 0 ? (toN(r[snwIdx]) || 0) : 0;
+    // Item name: prefer the material description; some layouts put the item name in
+    // the mark column and only a size remark ("Width: 495mm…") in the description.
+    const dRaw = sdIdx >= 0 ? String(r[sdIdx] ?? '').trim() : '';
+    const itemName = dRaw && !SIZE_REMARK.test(dRaw) ? dRaw : (markCol && !MODULE_FROM_MARK.test(markCol) ? markCol : dRaw);
+    let module = '';
+    if (modCol && !NOT_A_MODULE.test(modCol)) module = modCol;
+    else if (markCol) { const m = markCol.match(MODULE_FROM_MARK); if (m) module = m[1]; }
+    if (!qty && !nw && !module) continue;
+    if (module) {
+      const a = cur.modules.get(module) || { qty: 0, nw: 0, descs: new Set() };
+      a.qty += qty; a.nw += nw;
+      if (itemName) a.descs.add(itemName);
+      cur.modules.set(module, a);
+    } else if (qty || nw) {
+      cur.bucket.qty += qty; cur.bucket.nw += nw;
+      if (itemName) cur.bucket.descs.add(itemName);
+    }
+  }
+
+  const join = (set, cap) => { const s = [...set].join(', '); return s.length > cap ? s.slice(0, cap - 1) + '…' : s; };
+  const out = [], recon = [];
+  for (const p of pkgs) {
+    const P = per[p.mark];
+    // A module on the package HEADER row (or nothing at all) = single-line package:
+    // "no mark-no breakdown" means its detail rows are deliberately ignored and the
+    // authoritative SUMMARY qty/gross/dims are used. Only header-less crates (module
+    // column says LOOSE PART) aggregate their detail rows per module.
+    if (!P || P.headerModule || P.modules.size === 0) {
+      // Tag: module from the header row, else the SUMMARY remark (holds the tank no
+      // in PK-14-style files), else the shipping mark itself.
+      const remarkModule = /delivery|port|fob|quayside/i.test(p.remark) ? '' : p.remark;
+      const tag = (P && P.headerModule) || remarkModule || p.mark;
+      out.push({ tag, desc: p.desc, qty: p.qty, wt: p.wt, len: p.len, wid: p.wid, hgt: p.hgt,
+        crate: p.mark, bay: '', row: '', detectedPO: '', prebuiltPallet: p.mark });
+      continue;
+    }
+    let q = P.bucket.qty;
+    for (const [mod, a] of P.modules) {
+      q += a.qty;
+      let d = join(a.descs, 90);
+      if (d && !/loose/i.test(d)) d = 'Loose parts: ' + d;
+      out.push({ tag: mod, desc: d || p.desc, qty: a.qty, wt: r2(a.nw), len: '', wid: '', hgt: '',
+        crate: p.mark, bay: '', row: '', detectedPO: '', prebuiltPallet: p.mark });
+    }
+    if (P.bucket.qty || P.bucket.nw) {
+      out.push({ tag: 'LOOSE PART', desc: 'No module ref: ' + join(P.bucket.descs, 60), qty: P.bucket.qty,
+        wt: r2(P.bucket.nw), len: '', wid: '', hgt: '', crate: p.mark, bay: '', row: '', detectedPO: '', prebuiltPallet: p.mark });
+    }
+    if (p.qty && q !== p.qty) recon.push(p.mark + ' extracted ' + q + ' pcs vs ' + p.qty + ' on SUMMARY');
+  }
+  if (!out.length) return { rows: [] };
+  let warn = 'Austruct module-level extract: ' + out.length + ' article lines across ' + pkgs.length +
+    ' pallets (pallet = shipping mark, tag = Module No, no mark-no breakdown). Weights: gross for single-module pallets, summed net for in-crate lines.';
+  warn += recon.length
+    ? ' ⚠ PIECE-COUNT MISMATCH vs SUMMARY — check before upload: ' + recon.join('; ')
+    : ' Piece counts reconcile with the SUMMARY sheet.';
+  return { rows: out, warn };
 }
 
 function _parseXLSheet(ws) {
@@ -2539,10 +2714,12 @@ async function parsePDF(buf) {
 }
 
 function parseNotes(notes) {
-  const r = { bay:'', row:'', noDims:false, tagSuffix:'', tagMap:[] };
+  const r = { bay:'', row:'', noDims:false, tagSuffix:'', tagMap:[], moduleLevel:false };
   const bm=notes.match(/bay\s*(\d+)/i), rm=notes.match(/row\s*(\d+)/i);
   if(bm) r.bay=bm[1]; if(rm) r.row=rm[1];
   if(/no dim|weight only/i.test(notes)) r.noDims=true;
+  // "module level" / "tag = module" — Austruct Meas Surv module-level mode
+  if(/module\s*(level|mode)|tag\s*=\s*module|pallet\s*=\s*shipping\s*mark/i.test(notes)) r.moduleLevel=true;
   // "tag suffix: - SP" — appended to every extracted tag (e.g. for spare packing lists)
   const sm = notes.match(/tag\s+suffix\s*:\s*(.+)/i);
   if(sm) r.tagSuffix = sm[1].trim();
@@ -2567,13 +2744,18 @@ function mkPallet(prefix, bay, row, crate) {
 function dedupTags(rows) {
   // Only suffix a tag when the same tag number appears with DIFFERENT descriptions.
   // Same tag + same description = same item on multiple pallets → no suffix needed.
+  // Rows with a prebuilt pallet (e.g. module-level extracts) are exempt: the same
+  // module legitimately appears on several pallets (the tank on one, its loose
+  // parts on another) and MUST keep the same article number in the WMS.
   const tagDescSets = {};
   rows.forEach(r => {
+    if (r.prebuiltPallet !== undefined) return;
     if (!tagDescSets[r.tag]) tagDescSets[r.tag] = new Set();
     tagDescSets[r.tag].add(r.desc || '');
   });
   const tagIdx = {};
   return rows.map(r => {
+    if (r.prebuiltPallet !== undefined) return r;
     if ((tagDescSets[r.tag] || new Set()).size <= 1) return r;
     tagIdx[r.tag] = (tagIdx[r.tag]||0)+1;
     return { ...r, tag: r.tag + '-' + tagIdx[r.tag] };
@@ -2598,11 +2780,12 @@ async function runExtract() {
   for (const doc of docs) {
     try {
       const buf = await doc.file.arrayBuffer();
-      // Resolve prefix before parse so new format parsers can use it for pallet names
+      // Resolve prefix + notes before parse so format parsers can use them (pallet
+      // names, and notes directives like "module level" that select a parse mode)
       const effectivePrefix = (doc.prefix || doc.po || 'PK').trim();
-      const { rows, warn } = doc.isPdf ? await parsePDF(buf) : parseXL(buf, effectivePrefix);
-      if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
       const ni = parseNotes(doc.notes);
+      const { rows, warn } = doc.isPdf ? await parsePDF(buf) : parseXL(buf, effectivePrefix, ni);
+      if (warn) errors.push(`<b>${esc(doc.name)}</b> — ${esc(warn)}`);
 
       // Resolve crate numbers for this file against numbers already used by earlier
       // files sharing the same prefix. Explicit numeric crates that collide are
@@ -2645,6 +2828,7 @@ async function runExtract() {
           id: uid++, tag, desc:r.desc, qty:r.qty,
           wt:r.wt, len:ni.noDims?'':r.len, wid:ni.noDims?'':r.wid, hgt:ni.noDims?'':r.hgt,
           pallet: (r.prebuiltPallet !== undefined) ? r.prebuiltPallet : mkPallet(effectivePrefix, r.bay||ni.bay, r.row||ni.row, effectiveCrate),
+          prebuiltPallet: r.prebuiltPallet, // kept so dedupTags can exempt module-level rows
           po: doc.po || r.detectedPO || '',
           supplier: doc.supplier || ''
         };
@@ -2836,11 +3020,19 @@ function generateOngoingXlsx() {
 }
 
 // ── ONGOING WMS ────────────────────────────────────────────
+// Two SOAP services on BWSBNE, routed by the local proxy via SOAPAction namespace:
+//   Automation (automation.asmx) — warehouse-side ops; used for the connection test.
+//   WSI (service.asmx)           — goods-owner ops incl. ProcessInOrder, which is the
+//     ONLY channel that pre-advises multi-article pallets: each line's article item
+//     carries a PalletItem identified by InOrder_LabelId, so lines sharing a Pallet
+//     Number attach to the SAME pallet item. (The Excel import only attaches the
+//     first line per label — observed on PK-14 Shipment 2, 2026-07-14.)
 const OG_PROXY      = 'http://localhost:8772/';
 const OG_NS         = 'http://ongoingsystems.se/Automation';
+const OG_WSI_NS     = 'http://ongoingsystems.se/WSI';
 const OG_GOODS_ID   = 105;
 
-function ogXml(operation, innerXml) {
+function ogXml(operation, innerXml, ns) {
   const user = esc(document.getElementById('og-user').value);
   const pass = esc(document.getElementById('og-pass').value);
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -2848,7 +3040,7 @@ function ogXml(operation, innerXml) {
                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
-    <${operation} xmlns="${OG_NS}">
+    <${operation} xmlns="${ns || OG_NS}">
       <UserName>${user}</UserName>
       <Password>${pass}</Password>
       ${innerXml}
@@ -2857,15 +3049,68 @@ function ogXml(operation, innerXml) {
 </soap:Envelope>`;
 }
 
-async function ogSoap(operation, innerXml) {
+async function ogSoap(operation, innerXml, ns) {
   return fetch(OG_PROXY, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': OG_NS + '/' + operation,
+      'SOAPAction': (ns || OG_NS) + '/' + operation,
     },
-    body: ogXml(operation, innerXml),
+    body: ogXml(operation, innerXml, ns),
   });
+}
+
+// Builds the <co> InOrder payload for WSI ProcessInOrder from reviewed rows of ONE PO.
+// Pure function (no DOM) so it can be unit-tested in Node. Element order follows the
+// WSDL sequences exactly — the ASMX deserializer is order-sensitive.
+function buildInOrderXml(po, rows, goodsOwnerId) {
+  const x = esc;
+  const lines = rows.map((r, i) => {
+    const qty = Number(r.qty) || 1;
+    const dim = (name, v) => (v !== '' && v != null && !isNaN(Number(v))) ? `
+            <${name}>${Number(v)}</${name}>` : '';
+    // Article item: dims/weight describe the advised item; PalletItem links it to the
+    // physical package. Same LabelId across lines = same pallet (InOrder_LabelId scope).
+    // No pallet number → plain order line (the pallet-scoped item identification
+    // requires a label, so no Items block is advised at all).
+    const itemsXml = r.pallet ? `
+        <Items>
+          <InOrderLineArticleItem>${dim('Weight', r.wt)}${dim('Length', r.len)}${dim('Width', r.wid)}${dim('Height', r.hgt)}
+            <NumberOfItems>${qty}</NumberOfItems>
+            <PalletItem>
+              <Identification>InOrder_LabelId</Identification>
+              <LabelId>${x(String(r.pallet).substring(0, 30))}</LabelId>
+              <Handling>
+                <SetAsInOrderPalletItem>true</SetAsInOrderPalletItem>
+                <ConnectPalletItemToInOrder>true</ConnectPalletItemToInOrder>
+              </Handling>
+            </PalletItem>
+            <InOrderLineArticleItemIdentification>Article_InOrder_ArticleItemPalletItemLabelId</InOrderLineArticleItemIdentification>
+          </InOrderLineArticleItem>
+        </Items>` : '';
+    return `
+      <InOrderLine>
+        <OrderLineIdentification>ExternalOrderLineCode</OrderLineIdentification>
+        <ArticleIdentification>ArticleNumber</ArticleIdentification>
+        <ExternalOrderLineCode>${i + 1}</ExternalOrderLineCode>
+        <ArticleNumber>${x(String(r.tag).substring(0, 200))}</ArticleNumber>
+        <ArticleName>${x(String(r.desc || r.tag).substring(0, 200))}</ArticleName>
+        <NumberOfItems>${qty}</NumberOfItems>${itemsXml}
+      </InOrderLine>`;
+  }).join('');
+  return `<co>
+    <InOrderInfo>
+      <InOrderIdentification>GoodsOwnerOrderNumber</InOrderIdentification>
+      <InOrderOperation>CreateOrUpdate</InOrderOperation>
+      <GoodsOwnerOrderNumber>${x(po)}</GoodsOwnerOrderNumber>
+    </InOrderInfo>
+    <GoodsOwner>
+      <GoodsOwnerIdentification>SystemId</GoodsOwnerIdentification>
+      <GoodsOwnerId>${goodsOwnerId}</GoodsOwnerId>
+    </GoodsOwner>
+    <InOrderLines>${lines}
+    </InOrderLines>
+  </co>`;
 }
 
 function ogStatus(html, type) {
@@ -2900,7 +3145,7 @@ async function testOngoingConnection() {
     }
   } catch(e) {
     if (e.message.includes('fetch')) {
-      ogStatus('✗ Cannot reach proxy at localhost:8772 — run <code>node proxy.js</code> in the alpha folder first', 'err');
+      ogStatus('✗ Cannot reach proxy at localhost:8772 — run <code>node claude-config\\tools\\proxy.js</code> first', 'err');
     } else {
       ogStatus('✗ Error: ' + e.message, 'err');
     }
@@ -3025,20 +3270,56 @@ async function mwrLoadFromFile(files) {
 
 async function confirmSendToOngoing() {
   if (!previewRows.length) { alert('No rows to send.'); return; }
+
+  // Validate before anything touches the wire — fail loudly, never upload a partial order
+  const bad = previewRows.filter(r => !r.po || !String(r.tag).trim());
+  if (bad.length) {
+    ogStatus(`✗ ${bad.length} row(s) missing a PO or Tag Number — fix them in the review table first. Nothing was sent.`, 'err');
+    return;
+  }
+
   const poGroups = {};
-  previewRows.forEach(r => {
-    const key = r.po || '(no PO)';
-    (poGroups[key] = poGroups[key] || []).push(r);
-  });
-  const summary = Object.entries(poGroups)
-    .map(([po, rows]) => `• ${po}: ${rows.length} line(s)`).join('\n');
-  if (!confirm(`Send ${previewRows.length} line(s) to Ongoing WMS — Alpha HPA (ID ${OG_GOODS_ID})?\n\n${summary}\n\nThis will create in-orders. Continue?`)) return;
-  // Actual in-order creation to be wired once send logic is confirmed — show preview for now
+  previewRows.forEach(r => (poGroups[r.po] = poGroups[r.po] || []).push(r));
+
+  const summary = Object.entries(poGroups).map(([po, rows]) => {
+    const pallets = {};
+    rows.forEach(r => { if (r.pallet) pallets[r.pallet] = (pallets[r.pallet] || 0) + 1; });
+    const multi = Object.entries(pallets).filter(([, n]) => n > 1);
+    return `• ${po}: ${rows.length} line(s) on ${Object.keys(pallets).length} pallet(s)` +
+      (multi.length ? ` — multi-article: ${multi.map(([p, n]) => `${p} (${n})`).join(', ')}` : '');
+  }).join('\n');
+
+  if (!confirm(`Upload to Ongoing WMS — Alpha HPA (ID ${OG_GOODS_ID})?\n\n${summary}\n\n` +
+    `Operation is CreateOrUpdate: if an order number already exists it will be UPDATED (lines matched by line number 1..N — a previous import of the same PO with different line order may leave stale lines; check the order in Ongoing after upload).\n\nContinue?`)) return;
+
+  ogStatus('<span class="spin"></span> Uploading…');
+  const results = [];
+  for (const [po, rows] of Object.entries(poGroups)) {
+    try {
+      const resp = await ogSoap('ProcessInOrder',
+        buildInOrderXml(po, rows, OG_GOODS_ID), OG_WSI_NS);
+      const text = await resp.text();
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + text.substring(0, 300));
+      const success = /<Success>true<\/Success>/.test(text);
+      const err = text.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/)?.[1]
+               || text.match(/<Message>([\s\S]*?)<\/Message>/)?.[1]
+               || text.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1] || '';
+      const orderId = text.match(/<InOrderId>(\d+)<\/InOrderId>/)?.[1];
+      results.push({ po, lines: rows.length, success, err, orderId });
+    } catch (e) {
+      results.push({ po, lines: rows.length, success: false,
+        err: /fetch/i.test(e.message) ? 'Cannot reach proxy at localhost:8772 — run node claude-config\\tools\\proxy.js first' : e.message });
+    }
+  }
+
+  const allOk = results.every(r => r.success);
   ogStatus(
-    `<b>Ready to send — ${previewRows.length} rows across ${Object.keys(poGroups).length} PO(s):</b><br>` +
-    Object.entries(poGroups).map(([po, r]) => `&nbsp;• ${esc(po)}: ${r.length} line(s)`).join('<br>') +
-    '<br><br><i>Actual upload not yet wired — confirm to proceed when ready.</i>',
-    'warn'
+    results.map(r => r.success
+      ? `✓ <b>${esc(r.po)}</b> — ${r.lines} line(s) uploaded, pallets attached${r.orderId ? ' (InOrderId ' + r.orderId + ')' : ''}`
+      : `✗ <b>${esc(r.po)}</b> — FAILED: ${esc(r.err || 'unknown error')}`
+    ).join('<br>') +
+    (allOk ? '<br><br>Verify in Ongoing: the order\'s pallet items should each list all their articles.' : '<br><br>Failed orders were NOT imported — nothing to roll back for them.'),
+    allOk ? 'ok' : 'err'
   );
 }
 </script>

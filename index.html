@@ -36,12 +36,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header p{color:var(--muted);font-size:.9rem}
 
 /* Setup banner */
-.setup-banner{background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.25);border-radius:var(--radius);padding:24px;margin-bottom:20px;text-align:center}
-.setup-banner h2{font-size:1rem;font-weight:600;margin-bottom:6px}
-.setup-banner p{color:var(--muted);font-size:.84rem;margin-bottom:16px}
-.tpl-saved-bar{display:flex;align-items:center;gap:10px;background:rgba(54,211,153,.07);border:1px solid rgba(54,211,153,.25);border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:.84rem;color:#6ee7b7}
-.tpl-saved-bar button{margin-left:auto;background:none;border:1px solid rgba(54,211,153,.3);color:#6ee7b7;border-radius:5px;padding:3px 10px;font-size:.76rem;cursor:pointer;font-family:inherit}
-.tpl-saved-bar button:hover{background:rgba(54,211,153,.1)}
 
 /* Cards */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px}
@@ -121,37 +115,13 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.3</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.4</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
 
-<!-- OPTIONAL TEMPLATE SETUP -->
-<div id="setup-section" style="display:none">
-  <div class="setup-banner">
-    <h2>One-time setup — upload your Alpha template</h2>
-    <p>The template is saved in your browser. You only need to do this once.</p>
-    <div class="dz" id="setup-dz" onclick="document.getElementById('setup-input').click()">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <p class="primary">Drop Alpha template (.xlsx) here or click to browse</p>
-    </div>
-    <input type="file" id="setup-input" accept=".xlsx,.xls" style="display:none">
-  </div>
-</div>
-
 <!-- MAIN WORKFLOW -->
 <div id="main-section">
-
-  <div class="tpl-saved-bar" id="tpl-bar" style="display:none">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 13 4 10"/></svg>
-    <span id="tpl-bar-name">Template loaded</span>
-    <button onclick="resetTemplate()">Change template</button>
-  </div>
-  <div class="tpl-saved-bar" id="no-tpl-bar" style="background:rgba(100,116,139,.07);border-color:rgba(100,116,139,.25);color:#94a3b8">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <span>No template — output will use standard column order</span>
-    <button onclick="document.getElementById('setup-section').style.display='block';document.getElementById('no-tpl-bar').style.display='none'">Upload template</button>
-  </div>
 
   <!-- STEP 1 -->
   <div class="card">
@@ -295,69 +265,20 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 </div><!-- /container -->
 
 <script>
-// ── TEMPLATE STORAGE ───────────────────────────────────────
-const TPL_KEY = 'alpha_tpl_v1';
-const TPL_NAME_KEY = 'alpha_tpl_name_v1';
-
-function saveTemplateBuf(buf, name) {
-  const bytes = new Uint8Array(buf);
-  let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  localStorage.setItem(TPL_KEY, btoa(bin));
-  localStorage.setItem(TPL_NAME_KEY, name);
-}
-
-function loadTemplateBuf() {
-  const b64 = localStorage.getItem(TPL_KEY);
-  if (!b64) return null;
-  const bin = atob(b64);
-  const buf = new ArrayBuffer(bin.length);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-  return buf;
-}
-
-function templateSaved() { return !!localStorage.getItem(TPL_KEY); }
-
-function resetTemplate() {
-  if (!confirm('Remove saved template? You will need to upload it again.')) return;
-  localStorage.removeItem(TPL_KEY);
-  localStorage.removeItem(TPL_NAME_KEY);
-  document.getElementById('setup-section').style.display = 'block';
-  document.getElementById('main-section').style.display = 'none';
-  startOver();
-}
-
 // ── INIT ───────────────────────────────────────────────────
+// Template upload removed 2026-07-14: output always uses the built-in default
+// formats (Data/Supplier/Blue Water for the Alpha doc, ONG_HEADERS for Ongoing).
+// Stale saved templates from older versions are cleared so they can never
+// silently shape the output again.
 (function init() {
-  showMain();  // Always go straight to the main workflow
-
-  wireDZ('setup-dz', 'setup-input', files => {
-    const f = files[0]; if (!f) return;
-    f.arrayBuffer().then(buf => {
-      saveTemplateBuf(buf, f.name);
-      document.getElementById('setup-section').style.display = 'none';
-      showMain();
-    }).catch(() => alert('Could not read that file.'));
-  });
+  localStorage.removeItem('alpha_tpl_v1');
+  localStorage.removeItem('alpha_tpl_name_v1');
 
   wireDZ('src-dz', 'src-input', files => {
     Array.from(files).forEach(addFile);
   });
   wireDZ('mwr-dz', 'mwr-file-input', mwrLoadFromFile);
 })();
-
-function showMain() {
-  document.getElementById('main-section').style.display = 'block';
-  const name = localStorage.getItem(TPL_NAME_KEY);
-  if (name) {
-    document.getElementById('tpl-bar').style.display = 'flex';
-    document.getElementById('no-tpl-bar').style.display = 'none';
-    document.getElementById('tpl-bar-name').textContent = '✓ ' + name;
-  } else {
-    document.getElementById('tpl-bar').style.display = 'none';
-    document.getElementById('no-tpl-bar').style.display = 'flex';
-  }
-}
 
 // ── DROP ZONES ─────────────────────────────────────────────
 function wireDZ(dzId, inputId, cb) {
@@ -2874,63 +2795,18 @@ function delR(id){previewRows=previewRows.filter(r=>r.id!==id);const t=document.
 function addRow(){const r={id:uid++,tag:'',desc:'',qty:1,wt:'',len:'',wid:'',hgt:'',pallet:'',po:'',supplier:''};previewRows.push(r);document.getElementById('preview-body').appendChild(mkTr(r));document.getElementById('row-count').textContent=previewRows.length+' rows';document.getElementById('review-card').style.display='block';document.getElementById('gen-card').style.display='block';}
 
 // ── GENERATE ───────────────────────────────────────────────
+// Always emits the standard Alpha layout (Data + empty Supplier/Blue Water sheets).
 function generate() {
   if (!previewRows.length) { alert('No rows to export.'); return; }
   const fname = document.getElementById('out-name').value.trim() || 'Alpha_Upload.xlsx';
-  const tplBuf = loadTemplateBuf();
-  let wb;
-
-  if (tplBuf) {
-    wb = XLSX.read(tplBuf, { type: 'array' });
-    const sn = wb.SheetNames.find(n => /supplier/i.test(n)) || wb.SheetNames[0];
-    const ws = wb.Sheets[sn];
-    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    const hi = findHdr(raw);
-    if (hi >= 0) {
-      const hdr = raw[hi], cm = buildCM(hdr);
-      // Find first empty row after the header to start inserting
-      let ins = hi + 1;
-      for (let i = hi+1; i < raw.length; i++) { if (raw[i].some(c => String(c).trim())) ins = i+1; else break; }
-      const poCol = hdr.findIndex(c => /purchase\s*order|p\.?o\b/i.test(String(c)));
-      // Build rows as arrays aligned to the template's column order,
-      // then use sheet_add_aoa which correctly extends !ref in all directions.
-      const aoa = previewRows.map(r => {
-        const row = new Array(hdr.length).fill('');
-        if (cm.tag  !== undefined) row[cm.tag]  = r.tag;
-        if (cm.desc !== undefined) row[cm.desc] = r.desc;
-        if (cm.qty  !== undefined && r.qty !== '') row[cm.qty]  = Number(r.qty);
-        if (cm.wt   !== undefined && r.wt  !== '') row[cm.wt]   = Number(r.wt);
-        if (cm.len  !== undefined && r.len !== '') row[cm.len]  = Number(r.len);
-        if (cm.wid  !== undefined && r.wid !== '') row[cm.wid]  = Number(r.wid);
-        if (cm.hgt  !== undefined && r.hgt !== '') row[cm.hgt]  = Number(r.hgt);
-        // Prefer a column explicitly named "Pallet number/no" over the generic crate match,
-        // which may have landed on "Container" (a shipping container, not a pallet).
-        const palletCol = hdr.findIndex(c => /pallet\s*(number|no\.?|#)/i.test(String(c)));
-        if (palletCol >= 0) row[palletCol] = r.pallet;
-        else if (cm.crate !== undefined) row[cm.crate] = r.pallet;
-        if (poCol >= 0) row[poCol] = r.po;
-        const supplierCol = hdr.findIndex(c => /supplier|vendor/i.test(String(c)));
-        if (supplierCol >= 0) row[supplierCol] = r.supplier;
-        return row;
-      });
-      XLSX.utils.sheet_add_aoa(ws, aoa, { origin: { r: ins, c: 0 } });
-    } else {
-      // Template header not recognised — append data as a new sheet so nothing is lost
-      const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order','Supplier'];
-      const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po,r.supplier||''])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Upload Data');
-    }
-  } else {
-    // No template — standard format
-    wb = XLSX.utils.book_new();
-    const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order','Supplier'];
-    const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po,r.supplier||''])];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{wch:22},{wch:38},{wch:9},{wch:12},{wch:11},{wch:11},{wch:11},{wch:32},{wch:16},{wch:18}];
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Supplier');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Blue Water');
-  }
+  const wb = XLSX.utils.book_new();
+  const hdrs = ['Tag Number','Brief Description','Quantity','Weight (kg)','Length (m)','Width (m)','Height (m)','Pallet Number','Purchase Order','Supplier'];
+  const data = [hdrs, ...previewRows.map(r=>[r.tag,r.desc,r.qty!==''?Number(r.qty):'',r.wt!==''?Number(r.wt):'',r.len!==''?Number(r.len):'',r.wid!==''?Number(r.wid):'',r.hgt!==''?Number(r.hgt):'',r.pallet,r.po,r.supplier||''])];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:22},{wch:38},{wch:9},{wch:12},{wch:11},{wch:11},{wch:11},{wch:32},{wch:16},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Supplier');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[]]),'Blue Water');
 
   const arr = XLSX.write(wb, { bookType:'xlsx', type:'array' });
   const blob = new Blob([arr], { type:'application/octet-stream' });
@@ -2992,18 +2868,8 @@ function generateOngoingXlsx() {
     return row;
   });
 
-  // Build workbook: start from saved template so other sheets (Supplier, Blue Water) are preserved
-  const tplBuf = loadTemplateBuf();
-  let wb;
-  if (tplBuf) {
-    wb = XLSX.read(tplBuf, { type: 'array' });
-    const dataSheetName = wb.SheetNames.find(n => /^data$/i.test(n)) || 'Data';
-    wb.Sheets[dataSheetName] = XLSX.utils.aoa_to_sheet([ONG_HEADERS, ...dataRows]);
-    if (!wb.SheetNames.includes(dataSheetName)) wb.SheetNames.unshift(dataSheetName);
-  } else {
-    wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([ONG_HEADERS, ...dataRows]), 'Data');
-  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([ONG_HEADERS, ...dataRows]), 'Data');
 
   const arr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([arr], { type: 'application/octet-stream' });

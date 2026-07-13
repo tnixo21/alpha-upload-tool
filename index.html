@@ -121,7 +121,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-13</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -558,8 +558,11 @@ function parseXL(buf, _prefix) {
   }
 
   // Priority 1.6: Emerson "Estimated Packing Slip" (PK-40A instruments) — detection-gated
-  // on a header row containing both "Est. Dim_CM" and "Box No.". Must run before the
-  // generic parser, which finds the TAG column but misses the combined-cell dims/weight.
+  // on a header row containing a TAG column and an "Est. Dim"-style column (Box No. is
+  // optional: single-pallet dockets drop it). Must run before the generic parser, which
+  // finds the TAG column but misses the combined-cell dims/weight. When the sheet carries
+  // the Emerson title but no recognisable header, a pattern-vote fallback inside the
+  // parser locates the columns from the data itself.
   const er = _parseEmersonEstPackSlip(wb);
   if (er.rows.length > 0) return er;
 
@@ -571,6 +574,9 @@ function parseXL(buf, _prefix) {
 
   // Priority 2: First sheet (standard behaviour)
   let result = _parseXLSheet(wb.Sheets[wb.SheetNames[0]]);
+  // Never let an Emerson slip degrade silently into a generic parse — the generic
+  // parser tends to pull dates/order numbers as items and misses the combined dims.
+  if (er.emersonLike) result.warn = 'This file looks like an Emerson packing slip, but no item table was recognised — a generic parse was used instead, which can pull dates/order numbers as items and miss dimensions. Check every row carefully, and send this file so the parser can be updated.' + (result.warn ? ' | ' + result.warn : '');
   if (result.rows.length > 0) return result;
 
   // Priority 3: Pall "Packing Note" sheet
@@ -665,47 +671,167 @@ function _parseValmontPackingList(wb, prefix) {
 // Handles Emerson Process Management (Nanjing) instrument packing slips (PK-40A SHP#7&8 etc.):
 //   LPN NO. | Box No. | Line No. | TAG(#) | Model String | [SO Line] | Est. Pkg. Type |
 //   Est. Dim_CM ("98X77X73") | Est. Volume_CM | Est. WT._KG | Plant
-// Dims (cm, combined in one cell) and gross weight are BOX-level, present only on each
+// Dims (combined in one cell) and gross weight are BOX-level, present only on each
 // box's first row — carried forward so every item in the box shares its box's values.
+// Header spellings drift between dockets (TAG / TAG(#) / Tag No., Box No. absent when
+// everything ships on one pallet, _CM vs _MM units, split L/W/H columns), so header
+// matching is loose and, when no header row is recognisable at all but the sheet
+// carries the Emerson title, a pattern-vote fallback locates the tag / dims / weight
+// columns from the data itself (tags look like 100-RO-092 / 105-FT-081).
+const _EM_TITLE_RE = /estimated\s+packing\s+slip|emerson\s+process/i;
+const _EM_DIMS_RE  = /(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)/;
+// Instrument tag: alnum - letters - alnum (100-RO-092, 105-FT-081, 100-FT-092A).
+// The month test excludes text dates like 10-Jul-26 / 9-JUL-2026.
+function _emIsTag(s) {
+  return /^[A-Z0-9]{1,6}-[A-Z]{1,5}-[A-Z0-9][A-Z0-9-]{0,11}$/i.test(s) &&
+         !/^\d{1,4}-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s);
+}
+// Pure number / text-date cells — never a usable description
+const _emIsNoise = s => /^[\d.,\s]+$/.test(s) || /^\d{1,4}[-/.][A-Za-z0-9]{1,3}[-/.]\d{1,4}$/.test(s);
 function _parseEmersonEstPackSlip(wb) {
+  const clean = c => String(c ?? '').replace(/[\s ]+/g, ' ').replace(/[:：]\s*$/, '').trim();
+  const TAG_H = /^tag\s*(\(#\)|#|no\.?|number)?$/i;
+  const BOX_H = /^(box|carton|case|pallet)\s*(no\.?|#|number)?$/i;
+  const DIM_H = /^(est\.?\s*)?dim(?:ension)?s?\.?[\s_(]*(cm|mm|m)?\s*\)?$/i;
+  const WT_H  = /^(est\.?\s*)?(gross\s*)?(wt|weight|g[./]?w)\.?[\s._(]*(kgs?)?\)?$/i;
+  const QTY_H = /^(q'?ty|quantity)\.?$/i;
+  const num = v => { const s = String(v ?? '').trim(); if (!/^\d+(?:[.,]\d+)?$/.test(s)) return null; const n = _pn(s); return isNaN(n) ? null : n; };
+  let emersonLike = false;
+
   for (const sn of wb.SheetNames) {
     const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+    if (!emersonLike && raw.slice(0, 30).some(r => r.some(c => _EM_TITLE_RE.test(String(c))))) emersonLike = true;
+
+    // ── Tier 1: header-row parse (TAG + a dims column; Box No. optional) ──────
+    // Needs an Emerson signal — the sheet title, an "Est."-prefixed header, or the
+    // original Box No. gate — so ordinary supplier sheets that happen to have Tag +
+    // Dimensions headers still go to the generic parser (which understands their
+    // crate/qty columns better than this box-level parser would).
+    const LWH_PATTERNS = ['l(?:ength)?', 'w(?:idth)?', 'h(?:eight)?'];
     let hi = -1;
-    for (let i = 0; i < Math.min(raw.length, 40); i++) {
-      if (raw[i].some(c => /est\.?\s*dim/i.test(String(c))) &&
-          raw[i].some(c => /^box\s*no\.?$/i.test(String(c).trim()))) { hi = i; break; }
+    for (let i = 0; i < Math.min(raw.length, 120); i++) {
+      const cells = raw[i].map(clean);
+      if (!cells.some(c => TAG_H.test(c))) continue;
+      // The tool's own Alpha upload layout (Tag Number / Pallet Number / Purchase
+      // Order / Supplier) also has tag + L/W/H headers — the generic parser owns it.
+      if (cells.some(c => /^(purchase\s*order|supplier|brief\s*description)$/i.test(c))) break;
+      const hasDim = cells.some(c => DIM_H.test(c)) ||
+        LWH_PATTERNS.every(p => cells.some(c => new RegExp('^' + p + '[\\s_(]*(cm|mm|m)?\\s*\\)?$', 'i').test(c)));
+      const emSignal = emersonLike || cells.some(c => /^est\.?\s/i.test(c)) || cells.some(c => BOX_H.test(c));
+      if (hasDim && emSignal) { hi = i; break; }
     }
-    if (hi < 0) continue;
-    const hdr = raw[hi];
-    const boxIdx   = hdr.findIndex(c => /^box\s*no\.?$/i.test(String(c).trim()));
-    const tagIdx   = hdr.findIndex(c => /^tag\s*#?$/i.test(String(c).trim()));
-    const modelIdx = hdr.findIndex(c => /model\s*string/i.test(String(c)));
-    const dimIdx   = hdr.findIndex(c => /est\.?\s*dim/i.test(String(c)));
-    const wtIdx    = hdr.findIndex(c => /est\.?\s*wt/i.test(String(c)));
-    if (boxIdx < 0 || tagIdx < 0) continue;
+    if (hi >= 0) {
+      const hdr = raw[hi].map(clean);
+      const tagIdx = hdr.findIndex(c => TAG_H.test(c));
+      const boxIdx = hdr.findIndex(c => BOX_H.test(c));
+      const dimIdx = hdr.findIndex(c => DIM_H.test(c));
+      const wtIdx  = hdr.findIndex(c => WT_H.test(c));
+      const qtyIdx = hdr.findIndex(c => QTY_H.test(c));
+      let modelIdx = hdr.findIndex(c => /model\s*string/i.test(c));
+      if (modelIdx < 0) modelIdx = hdr.findIndex(c => /^model|^desc/i.test(c));
+      // Split L / W / H columns — used when there is no combined "98X77X73" cell
+      const LWH = LWH_PATTERNS.map(p =>
+        hdr.findIndex(c => new RegExp('^' + p + '[\\s_(]*(cm|mm|m)?\\s*\\)?$', 'i').test(c)));
+      const um = dimIdx >= 0 ? hdr[dimIdx].match(/(mm|cm|m)\s*\)?$/i)
+               : (LWH[0] >= 0 ? hdr[LWH[0]].match(/(mm|cm|m)\s*\)?$/i) : null);
+      const unit = um ? um[1].toLowerCase() : 'cm';
+
+      let curBox = '', bx = { wt: '', len: '', wid: '', hgt: '' };
+      const out = [];
+      for (let i = hi + 1; i < raw.length; i++) {
+        const r = raw[i];
+        const box = boxIdx >= 0 ? String(r[boxIdx] ?? '').trim() : '';
+        const tag = String(r[tagIdx] ?? '').trim();
+        if (!box && !tag) continue;                    // footer / blank rows
+        if (TAG_H.test(clean(tag))) continue;          // repeated page header
+        if (/^total/i.test(tag) || /^total/i.test(box)) continue;
+        if (box && box !== curBox) { curBox = box; bx = { wt: '', len: '', wid: '', hgt: '' }; }
+        const dm = dimIdx >= 0 ? String(r[dimIdx] ?? '').match(_EM_DIMS_RE) : null;
+        if (dm) { bx.len = toM(dm[1].replace(',', '.'), unit); bx.wid = toM(dm[2].replace(',', '.'), unit); bx.hgt = toM(dm[3].replace(',', '.'), unit); }
+        else if (LWH.every(x => x >= 0)) {
+          const [lv, wv, hv] = LWH.map(x => num(r[x]));
+          if (lv && wv && hv) { bx.len = toM(lv, unit); bx.wid = toM(wv, unit); bx.hgt = toM(hv, unit); }
+        }
+        if (wtIdx >= 0 && String(r[wtIdx] ?? '').trim() !== '') bx.wt = toN(r[wtIdx]);
+        if (!tag) continue;
+        out.push({ tag, desc: modelIdx >= 0 ? String(r[modelIdx] ?? '').trim() : '',
+          qty: qtyIdx >= 0 ? (toQty(r[qtyIdx]) || 1) : 1,
+          wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
+          crate: curBox || '1', bay: '', row: '', detectedPO: '' });
+      }
+      if (out.length > 0) {
+        const nb = new Set(out.map(r => r.crate)).size;
+        return { rows: out, warn: 'Emerson Estimated Packing Slip: ' + out.length + ' items across ' + nb +
+          (nb === 1 ? ' pallet/box' : ' boxes') + '. Dims + weight are box-level — every item in a box shows its box\'s gross weight and dimensions.' };
+      }
+    }
+
+    // ── Tier 2: pattern-vote fallback (Emerson title but unrecognised header) ──
+    if (!emersonLike) continue;
+    const tagVotes = {}, dimVotes = {};
+    raw.forEach(r => r.forEach((c, ci) => {
+      const s = String(c ?? '').trim();
+      if (_emIsTag(s)) tagVotes[ci] = (tagVotes[ci] || 0) + 1;
+      else if (_EM_DIMS_RE.test(s)) dimVotes[ci] = (dimVotes[ci] || 0) + 1;
+    }));
+    // Ties break to the rightmost column (weight sits right of volume in known layouts)
+    const best = (o, min) => { let k = -1, v = 0; for (const c in o) if (o[c] > v || (o[c] === v && +c > k)) { v = o[c]; k = +c; } return v >= min ? k : -1; };
+    const tCol = best(tagVotes, 3);
+    if (tCol < 0) continue;
+    const dCol = best(dimVotes, 1);
+    // Weight column: mostly-numeric (<5000) column right of the dims column
+    let wCol = -1;
+    if (dCol >= 0) {
+      const wVotes = {};
+      raw.forEach(r => {
+        if (!_EM_DIMS_RE.test(String(r[dCol] ?? ''))) return;
+        for (let ci = dCol + 1; ci < r.length; ci++) {
+          const n = num(r[ci]);
+          if (n != null && n > 0 && n < 5000) wVotes[ci] = (wVotes[ci] || 0) + 1;
+        }
+      });
+      wCol = best(wVotes, 1);
+    }
+    // Box column: small-integer column left of the tag column. A column whose values
+    // are nearly all distinct is a Line No. / serial counter, not a box number —
+    // treating it as the box would wrongly split a single pallet into one crate per row.
+    let bCol = -1;
+    { const bVotes = {}, bVals = {};
+      let nTagRows = 0;
+      raw.forEach(r => {
+        if (!_emIsTag(String(r[tCol] ?? '').trim())) return;
+        nTagRows++;
+        for (let ci = 0; ci < tCol; ci++) {
+          const s = String(r[ci] ?? '').trim();
+          if (/^\d{1,3}$/.test(s)) { bVotes[ci] = (bVotes[ci] || 0) + 1; (bVals[ci] = bVals[ci] || new Set()).add(s); }
+        }
+      });
+      for (const ci in bVotes) if (bVals[ci].size >= Math.max(2, 0.9 * bVotes[ci]) && bVotes[ci] >= 0.9 * nTagRows) delete bVotes[ci];
+      bCol = best(bVotes, 1); }
     let curBox = '', bx = { wt: '', len: '', wid: '', hgt: '' };
     const out = [];
-    for (let i = hi + 1; i < raw.length; i++) {
-      const r = raw[i];
-      const box = String(r[boxIdx] ?? '').trim();
-      const tag = String(r[tagIdx] ?? '').trim();
-      if (!box && !tag) continue;               // footer / blank rows
-      if (/^tag\s*#?$/i.test(tag)) continue;    // repeated page header
+    for (const r of raw) {
+      const box = bCol >= 0 ? String(r[bCol] ?? '').trim() : '';
       if (box && box !== curBox) { curBox = box; bx = { wt: '', len: '', wid: '', hgt: '' }; }
-      if (dimIdx >= 0) {
-        const dm = String(r[dimIdx] ?? '').match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
-        if (dm) { bx.len = toM(dm[1], 'cm'); bx.wid = toM(dm[2], 'cm'); bx.hgt = toM(dm[3], 'cm'); }
-      }
-      if (wtIdx >= 0 && String(r[wtIdx] ?? '').trim() !== '') bx.wt = toN(r[wtIdx]);
-      if (!tag) continue;
-      out.push({ tag, desc: modelIdx >= 0 ? String(r[modelIdx] ?? '').trim() : '', qty: 1,
-        wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
-        crate: curBox, bay: '', row: '', detectedPO: '' });
+      const dm = dCol >= 0 ? String(r[dCol] ?? '').match(_EM_DIMS_RE) : null;
+      if (dm) { bx.len = toM(dm[1].replace(',', '.'), 'cm'); bx.wid = toM(dm[2].replace(',', '.'), 'cm'); bx.hgt = toM(dm[3].replace(',', '.'), 'cm'); }
+      if (wCol >= 0) { const n = num(r[wCol]); if (n != null) bx.wt = n; }
+      const tag = String(r[tCol] ?? '').trim();
+      if (!_emIsTag(tag)) continue;
+      let desc = '';
+      r.forEach((c, ci) => {
+        const s = String(c ?? '').trim();
+        if (ci !== tCol && ci !== dCol && s.length > desc.length && s.length >= 6 &&
+            !_EM_DIMS_RE.test(s) && !_emIsNoise(s) && !_EM_TITLE_RE.test(s)) desc = s;
+      });
+      out.push({ tag, desc, qty: 1, wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
+        crate: curBox || '1', bay: '', row: '', detectedPO: '' });
     }
     if (out.length > 0) return { rows: out,
-      warn: 'Emerson Estimated Packing Slip: ' + out.length + ' items. Dims + weight are box-level — every item in a box shows its box\'s gross weight and dimensions.' };
+      warn: 'Emerson packing slip detected, but the column headers were NOT in the known layout — columns were located from data patterns instead. ' +
+        out.length + ' tagged items found. CHECK tags, dims and weights carefully against the document.' };
   }
-  return { rows: [] };
+  return { rows: [], emersonLike };
 }
 
 // ── AUSTRUCT "MEAS SURV" SUMMARY PARSER ─────────────────────────────────────
@@ -1830,6 +1956,84 @@ function tryParseSchuF(allItems, combinedHdrText, hdrItems, dataStart, rawRows) 
 }
 // ── end ported parsers ──────────────────────────────────────────────────────
 
+// ── EMERSON "ESTIMATED PACKING SLIP" (PDF PRINT) ────────────────────────────
+// Same document the Excel parser handles, printed/saved to PDF. Hard-gated on the
+// Emerson title text so it cannot affect any other supplier. Tag / dims / weight are
+// found from data patterns (tags like 100-RO-092, combined dims like 95X79X73) with
+// header x-positions used as hints, since the print layout drifts between dockets.
+// Always returns a result when the title matches — an Emerson slip must never fall
+// through to the generic column-map, which pulls dates/order numbers and misses dims.
+function tryParseEmersonPDF(allItems) {
+  if (!allItems.some(i => _EM_TITLE_RE.test(i.text))) return null;
+  const unit = allItems.some(i => /dim\w*[\s_(]*mm/i.test(i.text)) ? 'mm' : 'cm';
+  // Group into visual rows by y (tolerance 5pt) — same approach as the generic path
+  const TOL = 5, rows = [];
+  let cur = [allItems[0]], curY = allItems[0].y;
+  for (let k = 1; k < allItems.length; k++) {
+    if (Math.abs(allItems[k].y - curY) <= TOL) cur.push(allItems[k]);
+    else { rows.push(cur.sort((a, b) => a.x - b.x)); cur = [allItems[k]]; curY = allItems[k].y; }
+  }
+  if (cur.length) rows.push(cur.sort((a, b) => a.x - b.x));
+
+  let tagX = null, boxX = null, wtX = null, lineX = null;
+  let curBox = '', bx = { wt: '', len: '', wid: '', hgt: '' };
+  const out = [];
+  for (const row of rows) {
+    // Header rows teach us column x-positions and are never data
+    const hTag = row.find(i => /^tag\s*(\(#\)|#|no\.?|number)?\s*[:：]?$/i.test(i.text.trim()));
+    if (hTag) {
+      tagX = hTag.x;
+      const hBox = row.find(i => /^(box|carton|case|pallet)\s*(no\.?|#|number)?\s*[:：]?$/i.test(i.text.trim()));
+      if (hBox) boxX = hBox.x;
+      const hLine = row.find(i => /^line\s*(no\.?|#|number)?\s*[:：]?$/i.test(i.text.trim()));
+      if (hLine) lineX = hLine.x;
+      const hWt = row.find(i => /^(est\.?\s*)?(gross\s*)?(wt|weight)\.?[\s._(]*(kgs?)?\)?$/i.test(i.text.trim()));
+      if (hWt) wtX = hWt.x;
+      continue;
+    }
+    if (row.some(i => /^total/i.test(i.text.trim()))) continue;
+    const tagItem = row.find(i => _emIsTag(i.text.trim()) && (tagX == null || Math.abs(i.x - tagX) < 120));
+    // Dims cell must be essentially just the "95X79X73" value, not a sentence containing one
+    const dimItem = row.find(i => { const s = i.text.trim(), m = s.match(_EM_DIMS_RE); return m && m[0].length >= s.length - 4; });
+    // New box: the integer NEAREST the Box No. header (and nearer to it than to the
+    // Line No. header — line counters sit beside box numbers and must not win).
+    // Without a taught Box No. x-position we deliberately do NOT guess from
+    // left-of-tag integers; guessing would split a single pallet into a crate per row.
+    let boxItem = null;
+    if (boxX != null) {
+      let bd = 60;
+      for (const i of row) {
+        if (!/^\d{1,3}$/.test(i.text.trim())) continue;
+        const d = Math.abs(i.x - boxX);
+        if (d < bd && (lineX == null || d < Math.abs(i.x - lineX))) { bd = d; boxItem = i; }
+      }
+    }
+    if (boxItem && boxItem.text.trim() !== curBox) { curBox = boxItem.text.trim(); bx = { wt: '', len: '', wid: '', hgt: '' }; }
+    if (dimItem) {
+      const dm = dimItem.text.trim().match(_EM_DIMS_RE);
+      bx.len = toM(dm[1].replace(',', '.'), unit); bx.wid = toM(dm[2].replace(',', '.'), unit); bx.hgt = toM(dm[3].replace(',', '.'), unit);
+    }
+    const wtItem = row.filter(i => i !== dimItem && /^\d+(?:[.,]\d+)?$/.test(i.text.trim()))
+      .filter(i => { const n = _pn(i.text.trim()); return n > 0 && n < 5000; })
+      .filter(i => wtX != null ? Math.abs(i.x - wtX) < 60 : (dimItem ? i.x > dimItem.x : false))
+      .sort((a, b) => b.x - a.x)[0];
+    if (wtItem) bx.wt = _pn(wtItem.text.trim());
+    if (!tagItem) continue;
+    let desc = '';
+    for (const i of row) {
+      const s = i.text.trim();
+      if (i !== tagItem && i !== dimItem && s.length > desc.length && s.length >= 6 &&
+          !_EM_DIMS_RE.test(s) && !_emIsNoise(s) && !_EM_TITLE_RE.test(s)) desc = s;
+    }
+    out.push({ tag: tagItem.text.trim(), desc, qty: 1, wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
+      crate: curBox || '1', bay: '', row: '', detectedPO: '' });
+  }
+  if (out.length > 0) return { rows: out,
+    warn: 'Emerson Estimated Packing Slip (PDF): ' + out.length + ' items. Dims + weight are box-level (carried to every item in the box) — verify against the document; the Excel version parses more reliably if available.' };
+  return { rows: [],
+    warn: 'This looks like an Emerson packing slip PDF, but no item lines were recognised. Request the Excel (.xlsx) EstPackSlip version, or add rows manually.' };
+}
+
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -1860,6 +2064,11 @@ async function parsePDF(buf) {
   }
 
   allItems.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+  // Emerson slip printed to PDF — hard-gated on the title text, checked before
+  // everything else so it can never fall into the generic column-map.
+  const _emerResult = tryParseEmersonPDF(allItems);
+  if (_emerResult) return _emerResult;
 
   // Try format-specific parsers before the generic column-map approach
   const _uniqResult = tryParseUniquipSummary(allItems);

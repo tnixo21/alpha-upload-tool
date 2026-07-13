@@ -121,7 +121,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-10</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-13</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -2793,6 +2793,12 @@ async function confirmSendToOngoing() {
     'warn'
   );
 }
+</script>
+<!-- Anonymous open counter (no names/IPs) — fails silently offline -->
+<script>
+(function(){try{
+fetch('https://delivery-booking-production.up.railway.app/api/track?tool=alpha-upload-tool',{method:'POST',mode:'cors',keepalive:true,cache:'no-store'}).catch(function(){});
+}catch(e){}})();
 </script>
 </body>
 </html>

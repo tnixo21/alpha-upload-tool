@@ -115,7 +115,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.4</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.5</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -178,12 +178,8 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       <input type="text" id="og-user" placeholder="Ongoing API username" style="flex:1;min-width:160px">
       <input type="password" id="og-pass" placeholder="Password" style="flex:1;min-width:140px">
-      <button class="btn-primary" id="og-test-btn" onclick="testOngoingConnection()" style="white-space:nowrap">Test Connection →</button>
     </div>
-    <div id="og-send-wrap" style="display:none">
-      <div id="og-divider" style="border-top:1px dashed var(--border);margin:12px 0"></div>
-      <button class="btn-generate" style="background:linear-gradient(135deg,#b45309,#d97706)" onclick="confirmSendToOngoing()">🚀 Upload to Ongoing WMS — pallets attached</button>
-    </div>
+    <button class="btn-generate" style="background:linear-gradient(135deg,#b45309,#d97706)" onclick="confirmSendToOngoing()">🚀 Upload to Ongoing WMS — pallets attached</button>
     <div id="og-status" style="margin-top:12px"></div>
   </div>
 
@@ -2169,6 +2165,109 @@ function tryParseEmersonPDF(allItems) {
     warn: 'This looks like an Emerson packing slip PDF, but no item lines were recognised. Request the Excel (.xlsx) EstPackSlip version, or add rows manually.' };
 }
 
+// ── YOKOGAWA "DELIVERY NOTE" (PDF) ──────────────────────────────────────────
+// PK-40B analyser instruments ex Yokogawa NSW (added 2026-07-14, real file
+// "Delivery Note_Alpha Hpa_R3.pdf" / NPT000197). Hard-gated on the YOKOGAWA
+// letterhead + DELIVERY NOTE title so it can never fall into the generic parser.
+// Table: Item | Model Number | Remarks | Item Description | Tag Number | Qty |
+// Case/Carton No. ("PALLET NO N"). Analyser lines list one tag per instrument
+// under a single item line → one row per tag (qty 1, desc = full model string).
+// Sensor/accessory lines have no tags → one row, tag = short Item Description
+// (deliberately the same article across pallets), qty as printed. SPARE remarks
+// prefix the description; an untagged spare gets the "- SP" tag suffix.
+// The trailing summary table gives per-pallet weight + dims (cm → m) which are
+// repeated onto every line of that pallet (same convention as the Emerson
+// box-level carry) — flagged in the warning so totals aren't double-counted.
+function tryParseYokogawaDN(allItems) {
+  const joined = allItems.map(i => i.text).join(' ');
+  if (!/YOKOGAWA/i.test(joined) || !/DELIVERY\s+NOTE/i.test(joined)) return null;
+
+  const hdrOf = re => allItems.find(i => re.test(i.text));
+  const itemHdr = hdrOf(/^Item$/i), modelHdr = hdrOf(/^Model\s*Number$/i),
+        remHdr = hdrOf(/^Remarks$/i), descHdr = hdrOf(/^Item\s*Description$/i),
+        tagHdr = hdrOf(/^Tag\s*Number$/i), qtyHdr = hdrOf(/^Qty$/i),
+        caseHdr = hdrOf(/^Case\/?\s*Carton/i);
+  if (!itemHdr || !modelHdr || !descHdr || !tagHdr || !qtyHdr || !caseHdr) return null;
+  const hdrY = tagHdr.y;
+
+  // Classify each cell by the nearest header anchor on x
+  const anchors = [['item', itemHdr.x], ['model', modelHdr.x], ['desc', descHdr.x],
+                   ['tag', tagHdr.x], ['qty', qtyHdr.x], ['case', caseHdr.x]];
+  if (remHdr) anchors.splice(2, 0, ['rem', remHdr.x]);
+  const colOf = x => anchors.reduce((b, a) => Math.abs(x - a[1]) < Math.abs(x - b[1]) ? a : b)[0];
+
+  // Group everything below the header into visual rows. Cells in one printed row
+  // can differ slightly in y, so each grouped row is re-sorted by x — otherwise
+  // the leftmost cell isn't reliably first and item detection misfires.
+  const body = allItems.filter(i => i.y > hdrY + 3).sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+  const rows = [];
+  let cur = [], curY = null;
+  for (const it of body) {
+    if (curY !== null && Math.abs(it.y - curY) <= 5) cur.push(it);
+    else { if (cur.length) rows.push(cur.sort((a, b) => a.x - b.x)); cur = [it]; curY = it.y; }
+  }
+  if (cur.length) rows.push(cur.sort((a, b) => a.x - b.x));
+
+  const lines = [];      // parsed item lines
+  const palletDims = {}; // "1" → {wt,len,wid,hgt}
+  let line = null, summary = false;
+  for (const r of rows) {
+    const texts = r.map(i => i.text);
+    if (!summary && texts.some(t => /^Description$/i.test(t)) && texts.some(t => /Weight/i.test(t))) { summary = true; continue; }
+    if (summary) {
+      if (texts.some(t => /^Total:?$/i.test(t))) break;
+      const m = String(texts[0]).match(/^PALLET\s*(\d+)$/i);
+      if (m) {
+        const nums = r.slice(1).map(i => toN(i.text)).filter(v => v !== '');
+        if (nums.length >= 4) palletDims[m[1]] = { wt: nums[0], len: +(nums[1] / 100).toFixed(3), wid: +(nums[2] / 100).toFixed(3), hgt: +(nums[3] / 100).toFixed(3) };
+      }
+      continue;
+    }
+    const isNewItem = r.some(c => colOf(c.x) === 'item' && /^\d+$/.test(c.text));
+    if (isNewItem) { line = { model: [], rem: '', desc: '', tags: [], qty: '', pallet: '' }; lines.push(line); }
+    if (!line) continue; // preamble between header and first item
+    for (const cell of r) {
+      const col = colOf(cell.x);
+      if (col === 'model') line.model.push(cell.text);
+      else if (col === 'rem') line.rem = (line.rem + ' ' + cell.text).trim();
+      else if (col === 'desc') { if (!line.desc) line.desc = cell.text; }
+      else if (col === 'tag') line.tags.push(cell.text);
+      else if (col === 'qty' && line.qty === '') line.qty = toN(cell.text);
+      else if (col === 'case') line.pallet = (line.pallet + ' ' + cell.text).trim();
+    }
+  }
+  if (!lines.length) return null;
+
+  const out = [], mismatches = [];
+  lines.forEach((L, n) => {
+    // wrapped model strings continue on the next visual row; hyphen/slash joins are seamless
+    const model = L.model.reduce((a, b) => a + (/[-/]$/.test(a) ? '' : a ? ' ' : '') + b, '');
+    const spare = /spare/i.test(L.rem);
+    const desc = (spare ? 'SPARE ' : '') + model;
+    const crate = (String(L.pallet).match(/(\d+)\s*$/) || [])[1] || '';
+    const d = palletDims[crate] || {};
+    const base = { desc, wt: d.wt ?? '', len: d.len ?? '', wid: d.wid ?? '', hgt: d.hgt ?? '', crate, bay: '', row: '', detectedPO: '' };
+    if (L.tags.length) {
+      if (L.qty !== '' && L.qty !== L.tags.length) mismatches.push('item ' + (n + 1) + ': ' + L.tags.length + ' tags vs qty ' + L.qty);
+      L.tags.forEach(t => out.push({ tag: t, qty: 1, ...base }));
+    } else {
+      out.push({ tag: (L.desc || model) + (spare ? '- SP' : ''), qty: L.qty || 1, ...base });
+    }
+  });
+
+  // PO from the "Customer PO No." header block (e.g. "PO005748 PK-40B")
+  const poItem = allItems.find(i => i.y < hdrY && /\bPK-?\d+[A-Z]?\b/i.test(i.text));
+  const po = poItem ? poItem.text.match(/\bPK-?(\d+[A-Z]?)\b/i)[1] : '';
+  if (po) out.forEach(r => r.detectedPO = 'PK-' + po.toUpperCase());
+
+  const pallets = [...new Set(out.map(r => r.crate).filter(Boolean))];
+  let warn = 'Yokogawa delivery note: ' + out.length + ' lines from ' + lines.length + ' items across ' +
+    pallets.length + ' pallets. One row per tag for analysers (qty 1, desc = model string); untagged sensors/accessories = one line (article = short model, same across pallets). ' +
+    'Pallet weight/dims from the summary table are repeated on EVERY line of that pallet — don\'t sum the weight column.';
+  warn += mismatches.length ? ' ⚠ TAG-COUNT MISMATCH vs printed qty: ' + mismatches.join('; ') : ' Tag counts match printed quantities.';
+  return { rows: out, warn };
+}
+
 async function parsePDF(buf) {
   const lib = window.pdfjsLib;
   if (!lib) throw new Error('PDF.js did not load — check your internet connection.');
@@ -2204,6 +2303,10 @@ async function parsePDF(buf) {
   // everything else so it can never fall into the generic column-map.
   const _emerResult = tryParseEmersonPDF(allItems);
   if (_emerResult) return _emerResult;
+
+  // Yokogawa delivery note (PK-40B instruments) — hard-gated on the letterhead
+  const _yokoResult = tryParseYokogawaDN(allItems);
+  if (_yokoResult) return _yokoResult;
 
   // Try format-specific parsers before the generic column-map approach
   const _uniqResult = tryParseUniquipSummary(allItems);
@@ -2983,41 +3086,6 @@ function ogStatus(html, type) {
   const el = document.getElementById('og-status');
   el.className = type ? type + '-box' : '';
   el.innerHTML = html;
-}
-
-async function testOngoingConnection() {
-  const btn = document.getElementById('og-test-btn');
-  btn.innerHTML = '<span class="spin"></span> Testing…'; btn.disabled = true;
-  ogStatus('');
-  document.getElementById('og-send-wrap').style.display = 'none';
-  document.getElementById('og-divider').style.display = 'none';
-
-  try {
-    const resp = await ogSoap('GetGoodsOwnersByQuery', '<query></query>');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const text = await resp.text();
-    const success = text.includes('<Success>true</Success>');
-    const hasAlpha = text.includes('<GoodsOwnerId>' + OG_GOODS_ID + '</GoodsOwnerId>');
-
-    if (success && hasAlpha) {
-      ogStatus('✓ Connected — Alpha HPA (ID ' + OG_GOODS_ID + ') is accessible on BWSBNE', 'ok');
-      document.getElementById('og-send-wrap').style.display = 'block';
-      document.getElementById('og-divider').style.display = 'block';
-    } else if (success) {
-      ogStatus('✗ Connected but Alpha HPA (ID ' + OG_GOODS_ID + ') not visible — check credentials', 'warn');
-    } else {
-      const msg = text.match(/<Message>(.*?)<\/Message>/)?.[1] || 'Unknown error';
-      ogStatus('✗ Auth failed: ' + msg, 'err');
-    }
-  } catch(e) {
-    if (e.message.includes('fetch')) {
-      ogStatus('✗ Cannot reach proxy at localhost:8772 — run <code>node claude-config\\tools\\proxy.js</code> first', 'err');
-    } else {
-      ogStatus('✗ Error: ' + e.message, 'err');
-    }
-  }
-
-  btn.innerHTML = 'Test Connection →'; btn.disabled = false;
 }
 
 // ── MWR OUTBOUND ORDER BUILDER ─────────────────────────────

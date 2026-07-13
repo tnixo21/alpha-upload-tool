@@ -115,7 +115,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.5</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.6</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -169,18 +169,8 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
     <div class="hint" style="margin-top:10px;text-align:center">Downloads the Alpha Supplier sheet — for internal records and packing list reference.</div>
     <div style="height:14px"></div>
     <button class="btn-generate" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)" onclick="generateOngoingXlsx()">📤 Generate Ongoing WMS File</button>
-    <div class="hint" style="margin-top:10px;text-align:center">Downloads <code>_ongoing.xlsx</code> — formatted for direct import via Registers → Import → Purchase order.<br>⚠ The Excel import only attaches the <b>first</b> line to each pallet label — for multi-article pallets use the direct upload below.</div>
+    <div class="hint" style="margin-top:10px;text-align:center">Downloads <code>_ongoing.xlsx</code> — formatted for direct import via Registers → Import → Purchase order.<br>⚠ The Excel import only attaches the <b>first</b> line to each pallet label — check multi-article pallets in Ongoing after import.</div>
     <div id="og-file-status" style="margin-top:12px"></div>
-
-    <div style="border-top:1px solid var(--border);margin:20px 0"></div>
-    <div style="font-weight:600;margin-bottom:6px">🔌 Direct upload to Ongoing WMS <span style="font-weight:400;font-size:.78rem;color:var(--muted)">(pallets attached to items)</span></div>
-    <div class="hint" style="margin-bottom:10px">Creates/updates the inbound order via the Ongoing API with every line connected to its Pallet Number — lines sharing a pallet land on the <b>same</b> pallet item (the Excel import can't do this). Needs the local proxy running: <code>node claude-config\tools\proxy.js</code></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-      <input type="text" id="og-user" placeholder="Ongoing API username" style="flex:1;min-width:160px">
-      <input type="password" id="og-pass" placeholder="Password" style="flex:1;min-width:140px">
-    </div>
-    <button class="btn-generate" style="background:linear-gradient(135deg,#b45309,#d97706)" onclick="confirmSendToOngoing()">🚀 Upload to Ongoing WMS — pallets attached</button>
-    <div id="og-status" style="margin-top:12px"></div>
   </div>
 
   <!-- MWR OUTBOUND ORDERS SECTION -->
@@ -2988,106 +2978,6 @@ function generateOngoingXlsx() {
     `<small style="color:var(--muted)">Claude will check for red errors, flag grey (Update) rows, and click Import once all clear.</small></div>`;
 }
 
-// ── ONGOING WMS ────────────────────────────────────────────
-// Two SOAP services on BWSBNE, routed by the local proxy via SOAPAction namespace:
-//   Automation (automation.asmx) — warehouse-side ops; used for the connection test.
-//   WSI (service.asmx)           — goods-owner ops incl. ProcessInOrder, which is the
-//     ONLY channel that pre-advises multi-article pallets: each line's article item
-//     carries a PalletItem identified by InOrder_LabelId, so lines sharing a Pallet
-//     Number attach to the SAME pallet item. (The Excel import only attaches the
-//     first line per label — observed on PK-14 Shipment 2, 2026-07-14.)
-const OG_PROXY      = 'http://localhost:8772/';
-const OG_NS         = 'http://ongoingsystems.se/Automation';
-const OG_WSI_NS     = 'http://ongoingsystems.se/WSI';
-const OG_GOODS_ID   = 105;
-
-function ogXml(operation, innerXml, ns) {
-  const user = esc(document.getElementById('og-user').value);
-  const pass = esc(document.getElementById('og-pass').value);
-  return `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Body>
-    <${operation} xmlns="${ns || OG_NS}">
-      <UserName>${user}</UserName>
-      <Password>${pass}</Password>
-      ${innerXml}
-    </${operation}>
-  </soap:Body>
-</soap:Envelope>`;
-}
-
-async function ogSoap(operation, innerXml, ns) {
-  return fetch(OG_PROXY, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': (ns || OG_NS) + '/' + operation,
-    },
-    body: ogXml(operation, innerXml, ns),
-  });
-}
-
-// Builds the <co> InOrder payload for WSI ProcessInOrder from reviewed rows of ONE PO.
-// Pure function (no DOM) so it can be unit-tested in Node. Element order follows the
-// WSDL sequences exactly — the ASMX deserializer is order-sensitive.
-function buildInOrderXml(po, rows, goodsOwnerId) {
-  const x = esc;
-  const lines = rows.map((r, i) => {
-    const qty = Number(r.qty) || 1;
-    const dim = (name, v) => (v !== '' && v != null && !isNaN(Number(v))) ? `
-            <${name}>${Number(v)}</${name}>` : '';
-    // Article item: dims/weight describe the advised item; PalletItem links it to the
-    // physical package. Same LabelId across lines = same pallet (InOrder_LabelId scope).
-    // No pallet number → plain order line (the pallet-scoped item identification
-    // requires a label, so no Items block is advised at all).
-    const itemsXml = r.pallet ? `
-        <Items>
-          <InOrderLineArticleItem>${dim('Weight', r.wt)}${dim('Length', r.len)}${dim('Width', r.wid)}${dim('Height', r.hgt)}
-            <NumberOfItems>${qty}</NumberOfItems>
-            <PalletItem>
-              <Identification>InOrder_LabelId</Identification>
-              <LabelId>${x(String(r.pallet).substring(0, 30))}</LabelId>
-              <Handling>
-                <SetAsInOrderPalletItem>true</SetAsInOrderPalletItem>
-                <ConnectPalletItemToInOrder>true</ConnectPalletItemToInOrder>
-              </Handling>
-            </PalletItem>
-            <InOrderLineArticleItemIdentification>Article_InOrder_ArticleItemPalletItemLabelId</InOrderLineArticleItemIdentification>
-          </InOrderLineArticleItem>
-        </Items>` : '';
-    return `
-      <InOrderLine>
-        <OrderLineIdentification>ExternalOrderLineCode</OrderLineIdentification>
-        <ArticleIdentification>ArticleNumber</ArticleIdentification>
-        <ExternalOrderLineCode>${i + 1}</ExternalOrderLineCode>
-        <ArticleNumber>${x(String(r.tag).substring(0, 200))}</ArticleNumber>
-        <ArticleName>${x(String(r.desc || r.tag).substring(0, 200))}</ArticleName>
-        <NumberOfItems>${qty}</NumberOfItems>${itemsXml}
-      </InOrderLine>`;
-  }).join('');
-  return `<co>
-    <InOrderInfo>
-      <InOrderIdentification>GoodsOwnerOrderNumber</InOrderIdentification>
-      <InOrderOperation>CreateOrUpdate</InOrderOperation>
-      <GoodsOwnerOrderNumber>${x(po)}</GoodsOwnerOrderNumber>
-    </InOrderInfo>
-    <GoodsOwner>
-      <GoodsOwnerIdentification>SystemId</GoodsOwnerIdentification>
-      <GoodsOwnerId>${goodsOwnerId}</GoodsOwnerId>
-    </GoodsOwner>
-    <InOrderLines>${lines}
-    </InOrderLines>
-  </co>`;
-}
-
-function ogStatus(html, type) {
-  const el = document.getElementById('og-status');
-  el.className = type ? type + '-box' : '';
-  el.innerHTML = html;
-}
-
 // ── MWR OUTBOUND ORDER BUILDER ─────────────────────────────
 let mwrUid = 1;
 
@@ -3202,60 +3092,6 @@ async function mwrLoadFromFile(files) {
   }
 }
 
-async function confirmSendToOngoing() {
-  if (!previewRows.length) { alert('No rows to send.'); return; }
-
-  // Validate before anything touches the wire — fail loudly, never upload a partial order
-  const bad = previewRows.filter(r => !r.po || !String(r.tag).trim());
-  if (bad.length) {
-    ogStatus(`✗ ${bad.length} row(s) missing a PO or Tag Number — fix them in the review table first. Nothing was sent.`, 'err');
-    return;
-  }
-
-  const poGroups = {};
-  previewRows.forEach(r => (poGroups[r.po] = poGroups[r.po] || []).push(r));
-
-  const summary = Object.entries(poGroups).map(([po, rows]) => {
-    const pallets = {};
-    rows.forEach(r => { if (r.pallet) pallets[r.pallet] = (pallets[r.pallet] || 0) + 1; });
-    const multi = Object.entries(pallets).filter(([, n]) => n > 1);
-    return `• ${po}: ${rows.length} line(s) on ${Object.keys(pallets).length} pallet(s)` +
-      (multi.length ? ` — multi-article: ${multi.map(([p, n]) => `${p} (${n})`).join(', ')}` : '');
-  }).join('\n');
-
-  if (!confirm(`Upload to Ongoing WMS — Alpha HPA (ID ${OG_GOODS_ID})?\n\n${summary}\n\n` +
-    `Operation is CreateOrUpdate: if an order number already exists it will be UPDATED (lines matched by line number 1..N — a previous import of the same PO with different line order may leave stale lines; check the order in Ongoing after upload).\n\nContinue?`)) return;
-
-  ogStatus('<span class="spin"></span> Uploading…');
-  const results = [];
-  for (const [po, rows] of Object.entries(poGroups)) {
-    try {
-      const resp = await ogSoap('ProcessInOrder',
-        buildInOrderXml(po, rows, OG_GOODS_ID), OG_WSI_NS);
-      const text = await resp.text();
-      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + text.substring(0, 300));
-      const success = /<Success>true<\/Success>/.test(text);
-      const err = text.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/)?.[1]
-               || text.match(/<Message>([\s\S]*?)<\/Message>/)?.[1]
-               || text.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1] || '';
-      const orderId = text.match(/<InOrderId>(\d+)<\/InOrderId>/)?.[1];
-      results.push({ po, lines: rows.length, success, err, orderId });
-    } catch (e) {
-      results.push({ po, lines: rows.length, success: false,
-        err: /fetch/i.test(e.message) ? 'Cannot reach proxy at localhost:8772 — run node claude-config\\tools\\proxy.js first' : e.message });
-    }
-  }
-
-  const allOk = results.every(r => r.success);
-  ogStatus(
-    results.map(r => r.success
-      ? `✓ <b>${esc(r.po)}</b> — ${r.lines} line(s) uploaded, pallets attached${r.orderId ? ' (InOrderId ' + r.orderId + ')' : ''}`
-      : `✗ <b>${esc(r.po)}</b> — FAILED: ${esc(r.err || 'unknown error')}`
-    ).join('<br>') +
-    (allOk ? '<br><br>Verify in Ongoing: the order\'s pallet items should each list all their articles.' : '<br><br>Failed orders were NOT imported — nothing to roll back for them.'),
-    allOk ? 'ok' : 'err'
-  );
-}
 </script>
 <!-- Anonymous open counter (no names/IPs) — fails silently offline -->
 <script>

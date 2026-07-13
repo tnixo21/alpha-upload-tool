@@ -121,7 +121,7 @@ td input[type=text]:focus{border-color:var(--accent);background:var(--bg)}
 <div class="container">
 
 <div class="header">
-  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14</span></h1>
+  <h1>Alpha Upload Tool <span style="font-size:.55em;font-weight:400;opacity:.65" title="Build date — if older than expected, git pull claude-config">v2026-07-14.2</span></h1>
   <p>Upload packing lists, add notes, review, and generate your upload file.</p>
   <p style="font-size:.78rem;color:var(--warning);margin-top:4px">PK Number goes in <b>both</b> "PK Number" fields (e.g. PK-35) — <b>not</b> the supplier PO (e.g. PO007798) &nbsp;·&nbsp; Spares: add "tag suffix: - SP" in Notes</p>
 </div>
@@ -1977,6 +1977,9 @@ function tryParseEmersonPDF(allItems) {
 
   let tagX = null, boxX = null, wtX = null, lineX = null;
   let curBox = '', bx = { wt: '', len: '', wid: '', hgt: '' };
+  // Carried order-line description for tag-grid layouts (descLocked starts true so
+  // preamble sentences can't be taken as a description before any order line appears)
+  let curDesc = '', modelX = null, descLocked = true;
   const out = [];
   for (const row of rows) {
     // Header rows teach us column x-positions and are never data
@@ -1992,7 +1995,40 @@ function tryParseEmersonPDF(allItems) {
       continue;
     }
     if (row.some(i => /^total/i.test(i.text.trim()))) continue;
-    const tagItem = row.find(i => _emIsTag(i.text.trim()) && (tagX == null || Math.abs(i.x - tagX) < 120));
+    // ALL tags in the row — the shipped "Packing Slip" layout lists tags in a
+    // multi-column grid, several per visual line, all belonging to the current crate
+    const tagItems = row.filter(i => _emIsTag(i.text.trim()) && (tagX == null || Math.abs(i.x - tagX) < 120));
+    const joined = row.map(i => i.text).join(' ');
+
+    // Package header line, e.g. "1 | Crate 50.00 KG / 110.23 LB, 76x49x48 CM / 30x19x19 IN"
+    // — box number, gross weight and dims for the crate whose tag grid follows
+    const ph = !tagItems.length && /\b(crate|box|carton|case|pallet|skid)\b/i.test(joined) &&
+               joined.match(/(\d+(?:[.,]\d+)?)\s*KG\b/i);
+    if (ph) {
+      const first = row[0].text.trim();
+      const nb = /^\d{1,3}$/.test(first) ? first : String((+(curBox || 0)) + 1);
+      if (nb !== curBox) { curBox = nb; bx = { wt: '', len: '', wid: '', hgt: '' }; }
+      bx.wt = _pn(ph[1]);
+      const pd = joined.match(/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)\s*(CM|MM|M)\b/);
+      if (pd) {
+        const u = pd[4].toLowerCase();
+        bx.len = toM(pd[1].replace(',', '.'), u); bx.wid = toM(pd[2].replace(',', '.'), u); bx.hgt = toM(pd[3].replace(',', '.'), u);
+      }
+      continue;
+    }
+
+    // Order-line model token (e.g. RMT-10138413) then its description sentence on the
+    // following line at the same x — becomes the description for the tag grid below
+    const model = row.find(i => /^[A-Z]{2,4}-\d{5,}$/.test(i.text.trim()));
+    if (model && !tagItems.length) { curDesc = model.text.trim(); modelX = model.x; descLocked = false; continue; }
+    if (!tagItems.length && !descLocked && modelX != null && row.length === 1) {
+      const s = row[0].text.trim();
+      if (Math.abs(row[0].x - modelX) < 30 && /[A-Za-z]{3,}\s+[A-Za-z]{2,}/.test(s) &&
+          !/country\s+of\s+origin|terms\s+and\s+conditions/i.test(s) && !_EM_DIMS_RE.test(s)) {
+        curDesc = s; descLocked = true;
+      }
+    }
+
     // Dims cell must be essentially just the "95X79X73" value, not a sentence containing one
     const dimItem = row.find(i => { const s = i.text.trim(), m = s.match(_EM_DIMS_RE); return m && m[0].length >= s.length - 4; });
     // New box: the integer NEAREST the Box No. header (and nearer to it than to the
@@ -2018,18 +2054,21 @@ function tryParseEmersonPDF(allItems) {
       .filter(i => wtX != null ? Math.abs(i.x - wtX) < 60 : (dimItem ? i.x > dimItem.x : false))
       .sort((a, b) => b.x - a.x)[0];
     if (wtItem) bx.wt = _pn(wtItem.text.trim());
-    if (!tagItem) continue;
+    if (!tagItems.length) continue;
+    // Per-row description (EstPackSlip table layout) beats the carried order-line one
     let desc = '';
     for (const i of row) {
       const s = i.text.trim();
-      if (i !== tagItem && i !== dimItem && s.length > desc.length && s.length >= 6 &&
+      if (!tagItems.includes(i) && i !== dimItem && s.length > desc.length && s.length >= 6 &&
           !_EM_DIMS_RE.test(s) && !_emIsNoise(s) && !_EM_TITLE_RE.test(s)) desc = s;
     }
-    out.push({ tag: tagItem.text.trim(), desc, qty: 1, wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
-      crate: curBox || '1', bay: '', row: '', detectedPO: '' });
+    for (const t of tagItems)
+      out.push({ tag: t.text.trim(), desc: desc || curDesc, qty: 1, wt: bx.wt, len: bx.len, wid: bx.wid, hgt: bx.hgt,
+        crate: curBox || '1', bay: '', row: '', detectedPO: '' });
   }
   if (out.length > 0) return { rows: out,
-    warn: 'Emerson Estimated Packing Slip (PDF): ' + out.length + ' items. Dims + weight are box-level (carried to every item in the box) — verify against the document; the Excel version parses more reliably if available.' };
+    warn: 'Emerson packing slip (PDF): ' + out.length + ' items across ' + new Set(out.map(r => r.crate)).size +
+      ' crate(s). Dims + weight are crate-level (carried to every item in the crate) — verify against the document.' };
   return { rows: [],
     warn: 'This looks like an Emerson packing slip PDF, but no item lines were recognised. Request the Excel (.xlsx) EstPackSlip version, or add rows manually.' };
 }
